@@ -1,0 +1,63 @@
+{
+  "spec": 1,
+  "id": "burrow-pages",
+  "name": "Burrow Pages",
+  "version": "1.0.0",
+  "description": "Your GitHub and GitLab repositories on a subdomain of yours, behind a password. Sign in with a code, pick a repository (the most active first) and Burrow serves it, private ones included, following every push. Experimental.",
+  "author": "Alexd Aero",
+  "license": "MIT",
+  "homepage": "https://github.com/alexd-aero/burrow-pages",
+  "logo": "logo.svg",
+  "platforms": [
+    "burrow"
+  ],
+  "requires": {
+    "burrow": ">=2.8.0",
+    "commands": [
+      "curl",
+      "tar"
+    ]
+  },
+  "scripts": {
+    "install": "scripts/install.sh",
+    "uninstall": "scripts/uninstall.sh",
+    "status": "scripts/status.sh"
+  },
+  "actions": [
+    {
+      "id": "check",
+      "label": "Check every site",
+      "script": "scripts/check.sh"
+    },
+    {
+      "id": "pause",
+      "label": "Pause every site",
+      "script": "scripts/pause.sh",
+      "confirm": "Every site stops answering until you resume it. Nothing is deleted."
+    },
+    {
+      "id": "resume",
+      "label": "Resume every site",
+      "script": "scripts/resume.sh"
+    }
+  ],
+  "settings": [
+    {
+      "key": "GITHUB_CLIENT_ID",
+      "label": "GitHub app client ID",
+      "type": "text",
+      "default": "",
+      "help": "The OAuth app Burrow Pages signs in to GitHub with (device flow). Its client ID is public; there is no secret. Empty: accounts by username only."
+    }
+  ],
+  "burrow": {
+    "extension": "burrow/extension.mjs",
+    "ui": "burrow/ui.js"
+  },
+  "links": [
+    {
+      "label": "How it works",
+      "url": "https://github.com/alexd-aero/burrow-pages#how-it-works"
+    }
+  ]
+}
