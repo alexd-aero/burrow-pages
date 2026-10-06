@@ -2,7 +2,7 @@
   "spec": 1,
   "id": "burrow-pages",
   "name": "Burrow Pages",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Static websites from your GitHub and GitLab repositories, on a subdomain of yours, behind a password. Sign in with a code, pick a repository (the most active first) and Burrow serves its files, private ones included, following every push. Static sites only: no server-side code. Experimental.",
   "author": "Alexd Aero",
   "license": "MIT",

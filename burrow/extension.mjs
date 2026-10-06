@@ -407,7 +407,7 @@ async function deploy({ account: id, repo: full, sub, access = "login", password
     } catch (e) { servers.get(String(port))?.close(); servers.delete(String(port)); rmSync(root, { recursive: true, force: true }); throw e; }
     mutate((st) => { st.deploys[t.port] = { port: t.port, listen: port, mode: "files", account: id, provider: r.provider, repo: r.full,
                                             branch: found.branch, path: found.dir || "/", commit, synced: now(), sub: t.sub, private: r.private }; });
-    say(`Live: ${t.url || "its address is on its way"}`);
+    await announce(t, say);
     return { tunnel: t, mode: "files", branch: found.branch, path: found.dir || "/", commit };
   }
   rmSync(tmp, { recursive: true, force: true });
@@ -434,8 +434,20 @@ async function deploy({ account: id, repo: full, sub, access = "login", password
   say(`Publishing ${pagesUrl}`);
   const t = await ctx.tunnels.create({ site: pagesUrl, sub, access, password, name: name || r.name, meta: { ...meta, mode: "pages" } });
   mutate((st) => { st.deploys[t.port] = { port: t.port, mode: "pages", account: id, provider: r.provider, repo: r.full, site: pagesUrl, synced: now(), sub: t.sub, private: false }; });
-  say(`Live: ${t.url || "its address is on its way"}`);
+  await announce(t, say);
   return { tunnel: t, mode: "pages", site: pagesUrl };
+}
+
+// "Live" once public DNS knows the name: opened sooner, a browser is told the
+// name doesn't exist and believes it for up to half an hour.
+async function announce(t, say) {
+  const ready = () => { const x = ctx.tunnels.list().find((y) => y.port === t.port); return !x?.dns || x.dns.ready !== false; };
+  if (t.url && !ready()) {
+    say(`Waiting for public DNS to know ${t.url.replace(/^https:\/\//, "")}`);
+    for (let i = 0; i < 30 && !ready(); i++) await new Promise((ok) => setTimeout(ok, 2000));
+    if (!ready()) { say(`Live: ${t.url} (public DNS is still catching up: give it a minute before opening it)`); return; }
+  }
+  say(`Live: ${t.url || "its address is on its way"}`);
 }
 
 // "current" points at the version being served; switching is one rename
