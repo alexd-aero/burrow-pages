@@ -13,6 +13,18 @@ const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
 const WARN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 2.5 20h19z"/><path d="M12 10v4M12 17h.01"/></svg>';
 const LOCK = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
 const PROV = { github: "GitHub", gitlab: "GitLab" };
+const INFO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>';
+const COMMIT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3.5"/><path d="M3 12h5.5M15.5 12H21"/></svg>';
+const CLOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>';
+const STAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg>';
+const LANG = { HTML: "#e34c26", CSS: "#563d7c", SCSS: "#c6538c", JavaScript: "#f1e05a", TypeScript: "#3178c6", Vue: "#41b883", Svelte: "#ff3e00",
+               Astro: "#ff5a03", Ruby: "#701516", Python: "#3572A5", Go: "#00ADD8", Rust: "#dea584", Java: "#b07219", Shell: "#89e051",
+               "C++": "#f34b7d", C: "#555555", "C#": "#178600", PHP: "#4F5D95", Kotlin: "#A97BFF", Swift: "#F05138", Markdown: "#083fa1", Dart: "#00B4AB" };
+// a website, most likely: GitHub already serves it, or it is written in the web's own languages
+const looksStatic = (r) => r.pages || ["HTML", "CSS", "SCSS"].includes(r.language);
+const when = (t) => { if (!t) return "never"; const d = (Date.now() - t) / 864e5; return d < 1 ? "today" : d < 2 ? "yesterday" : d < 30 ? `${Math.floor(d)} days ago` : d < 365 ? `${Math.floor(d / 30)} mo ago` : `${Math.floor(d / 365)} yr ago`; };
+// said wherever a site is made: Burrow serves files, it runs no code
+const STATIC_ONLY = `<div class="bp-static">${INFO}<div><b>Static websites only.</b> Burrow serves a repository's files as they are: HTML, CSS, JavaScript and images, already built (an <span class="mono">index.html</span> in <span class="mono">/</span>, <span class="mono">docs/</span>, <span class="mono">dist/</span>… or a <span class="mono">gh-pages</span> branch), or a Jekyll site GitHub Pages builds. Apps that need a server (Node, Python, PHP, a database) won't run.</div></div>`;
 const subFromRepo = (n) => (String(n || "").toLowerCase().replace(/\.github\.io$|\.gitlab\.io$/, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40).replace(/-+$/, "") || "site");
 
 const style = document.createElement("style");
@@ -50,15 +62,33 @@ style.textContent = `
 .bp-wait { display: flex; gap: 10px; align-items: center; color: var(--muted); font-size: 13px; }
 .bp-spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(255,255,255,.15); border-top-color: #3ddc97; animation: bpspin .8s linear infinite; }
 @keyframes bpspin { to { transform: rotate(360deg); } }
-.bp-repos { max-height: min(52vh, 460px); overflow: auto; margin: 10px -6px 4px; padding: 0 6px; }
-.bp-repo { display: flex; gap: 12px; align-items: center; padding: 10px 8px; border-radius: 10px; border-bottom: 1px solid var(--line); }
-.bp-repo:hover { background: rgba(255,255,255,.03); }
-.bp-repo .grow { min-width: 0; }
-.bp-repo b { font-size: 13.5px; } .bp-repo .d { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.bp-repo .m { font: 11px var(--mono); color: var(--faint); margin-top: 3px; display: flex; gap: 10px; flex-wrap: wrap; }
-.bp-rank { font: 600 11px var(--mono); color: var(--faint); width: 20px; text-align: right; flex: none; }
+.bp-repos { max-height: min(56vh, 520px); overflow: auto; margin: 12px -4px 4px; padding: 2px 4px; display: grid; gap: 8px; }
+.bp-repo { display: grid; gap: 6px; padding: 12px 14px; border: 1px solid var(--line-2); border-radius: 12px; background: rgba(255,255,255,.015); transition: border-color .15s, background .15s; }
+.bp-repo:hover { border-color: rgba(255,255,255,.16); background: rgba(255,255,255,.03); }
+.bp-repo.top { border-color: rgba(61,220,151,.28); }
+.bp-rtop { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.bp-rname { min-width: 0; flex: 1; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.bp-rname a { color: var(--text); text-decoration: none; font-weight: 600; font-size: 14px; letter-spacing: -.01em; overflow-wrap: anywhere; }
+.bp-rname a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.bp-rname .own { color: var(--faint); font-weight: 400; }
+.bp-tag { display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; border-radius: 99px; font: 10.5px var(--mono); border: 1px solid var(--line-2); color: var(--muted); white-space: nowrap; }
+.bp-tag.web { color: #9ef0c9; border-color: rgba(61,220,151,.35); background: rgba(61,220,151,.07); }
+.bp-tag.priv { color: #f2d48a; border-color: rgba(242,193,78,.3); }
+.bp-tag svg { width: 10px; height: 10px; }
+.bp-desc { color: var(--muted); font-size: 12.5px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.bp-rmeta { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11.5px; color: var(--faint); }
+.bp-rmeta span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.bp-rmeta svg { width: 12px; height: 12px; }
+.bp-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.bp-rtop .btn { flex: none; }
+.bp-static { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 12px; padding: 10px 12px; border-radius: 11px; font-size: 12.5px; line-height: 1.5;
+             border: 1px solid rgba(122,167,255,.3); background: rgba(122,167,255,.06); color: #d3defa; }
+.bp-static b { color: #fff; }
+.bp-static svg { flex: none; width: 16px; height: 16px; margin-top: 2px; color: #7aa7ff; }
 .bp-tools { display: flex; gap: 8px; flex-wrap: wrap; }
-.bp-tools select, .bp-tools input { flex: 1 1 160px; }
+.bp-tools { align-items: center; }
+.bp-tools select, .bp-tools input#bpQ { flex: 1 1 160px; }
+.bp-only { gap: 8px; flex: none; color: var(--muted); }
 .bp-log { font: 11.5px/1.6 var(--mono); color: var(--muted); background: rgba(0,0,0,.25); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; max-height: 180px; overflow: auto; margin: 10px 0; white-space: pre-wrap; }
 .modal.wide { max-width: 640px; }
 @media (max-width: 600px) { .bp-sync { padding-left: 4px; } .bp-code { font-size: 26px; } }
@@ -85,7 +115,7 @@ export function card(ctx) {
       <div class="integ-logo"><img src="${h(p.logo || "/__gate/logos/burrow-pages.svg")}" alt=""></div>
       <div class="grow">
         <div class="integ-name">Burrow Pages ${p.version ? `<span class="pill">v${h(p.version)}</span>` : ""}<span class="pill exp">experimental</span></div>
-        <div class="integ-sub">Your GitHub and GitLab repositories on your domain, behind your login or a password of their own.</div>
+        <div class="integ-sub">Static websites from your GitHub and GitLab repositories, on your domain, behind your login or a password of their own.</div>
       </div>
       <div class="bp-actions">
         <button class="btn sm primary bp-btn" data-bp="deploy">${ROCKET} Deploy a repository</button>
@@ -103,7 +133,7 @@ export function card(ctx) {
     </div>
     ${S.error ? `<p class="err-msg">${h(S.error)}</p>` : ""}
     ${sites.length ? `<div class="bp-sites">${sites.map((t) => siteBlock(ctx, t, deploys.get(t.port))).join("")}</div>`
-      : `<p class="bp-empty">No sites yet. <b>Deploy a repository</b>: pick one (the most active first), a subdomain and who may open it, and Burrow serves it, private repositories included, and keeps it in step with every push.</p>`}
+      : `<p class="bp-empty">No sites yet. <b>Deploy a repository</b> that holds a static website: pick one (the most active first), a subdomain and who may open it, and Burrow serves it, private repositories included, and keeps it in step with every push.</p>`}
   </section>`;
 }
 
@@ -238,12 +268,14 @@ function deployForm(ctx) {
     return;
   }
   if (!S.acct || !accounts.some((a) => a.id === S.acct)) S.acct = (accounts.find((a) => a.signedIn) || accounts[0]).id;
-  ctx.openModal(`<h2>Deploy a repository</h2>
-    <p>Sorted by commits and recent activity. Burrow serves its files itself, behind a password, and follows every push.</p>
+  ctx.openModal(`<h2>Deploy a static website</h2>
+    <p>From one of your repositories, sorted by commits and recent activity. Burrow serves its files itself, behind a password, and follows every push.</p>
+    ${STATIC_ONLY}
     <div class="bp-tools">
       <select class="input" id="bpAcct">${accounts.map((a) => `<option value="${h(a.id)}" ${a.id === S.acct ? "selected" : ""}>@${h(a.username)} · ${PROV[a.provider]}${a.signedIn ? "" : " (public)"}</option>`).join("")}</select>
       <input class="input" id="bpQ" placeholder="Search" value="${h(S.q)}" spellcheck="false">
       <button class="btn sm ghost" id="bpRe" title="Ask again">${SYNC}</button>
+      <label class="row bp-only"><span class="switch"><input type="checkbox" id="bpWeb" ${S.webOnly ? "checked" : ""}><i></i></span><span class="small">Likely websites only</span></label>
     </div>
     <div class="bp-repos" id="bpList"><div class="bp-wait"><i class="bp-spin"></i>Asking for the repositories…</div></div>
     <div class="modal-actions"><button class="btn ghost" data-act="close">Close</button></div>`, (m) => {
@@ -253,14 +285,19 @@ function deployForm(ctx) {
       const all = S.repos[S.acct];
       if (!all) return;
       const q = S.q.toLowerCase().trim();
-      const rows = all.filter((r) => !q || `${r.full} ${r.description} ${r.language}`.toLowerCase().includes(q));
-      list.innerHTML = rows.length ? rows.slice(0, 150).map((r, i) => `<div class="bp-repo">
-          <span class="bp-rank">${q ? "" : i + 1}</span>
-          <div class="grow"><b>${h(r.full)}</b> ${r.private ? `<span class="pill lock">${LOCK} private</span>` : ""}${r.pages ? '<span class="pill site">Pages</span>' : ""}${r.archived ? '<span class="pill">archived</span>' : ""}${r.fork ? '<span class="pill">fork</span>' : ""}
-            ${r.description ? `<div class="d">${h(r.description)}</div>` : ""}
-            <div class="m">${r.commits != null ? `<span>${ctx.fmtN(r.commits)} commit${r.commits === 1 ? "" : "s"}</span>` : ""}<span>pushed ${ctx.ago(r.pushed)}</span>${r.language ? `<span>${h(r.language)}</span>` : ""}${r.stars ? `<span>★ ${ctx.fmtN(r.stars)}</span>` : ""}</div></div>
-          ${r.deployed ? `<span class="pill ok">at ${h(r.deployed.sub || "a tunnel")}</span>` : `<button class="btn sm primary" data-full="${h(r.full)}">Deploy</button>`}
-        </div>`).join("") : `<p class="muted small">${q ? "Nothing matches." : "No repositories here."}</p>`;
+      const rows = all.filter((r) => (!q || `${r.full} ${r.description} ${r.language}`.toLowerCase().includes(q)) && (!S.webOnly || looksStatic(r)));
+      list.innerHTML = rows.length ? rows.slice(0, 150).map((r, i) => {
+        const [own, ...rest] = r.full.split("/");
+        return `<div class="bp-repo${!q && i < 3 ? " top" : ""}">
+          <div class="bp-rtop">
+            <div class="bp-rname"><a href="${h(r.url || "#")}" target="_blank" rel="noopener"><span class="own">${h(own)}/</span>${h(rest.join("/"))}</a>
+              ${r.private ? `<span class="bp-tag priv">${LOCK} private</span>` : ""}${looksStatic(r) ? '<span class="bp-tag web">website</span>' : ""}${r.pages ? '<span class="bp-tag">on Pages</span>' : ""}${r.fork ? '<span class="bp-tag">fork</span>' : ""}${r.archived ? '<span class="bp-tag">archived</span>' : ""}</div>
+            ${r.deployed ? `<span class="pill ok">live at ${h(r.deployed.sub || "a tunnel")}</span>` : `<button class="btn sm primary" data-full="${h(r.full)}">Deploy</button>`}
+          </div>
+          ${r.description ? `<div class="bp-desc">${h(r.description)}</div>` : ""}
+          <div class="bp-rmeta">${r.commits != null ? `<span>${COMMIT}${ctx.fmtN(r.commits)} commit${r.commits === 1 ? "" : "s"}</span>` : ""}<span>${CLOCK}${when(r.pushed)}</span>${r.language ? `<span><i class="bp-dot" style="background:${LANG[r.language] || "#8a8f97"}"></i>${h(r.language)}</span>` : ""}${r.stars ? `<span>${STAR}${ctx.fmtN(r.stars)}</span>` : ""}</div>
+        </div>`;
+      }).join("") : `<p class="muted small">${q ? "Nothing matches." : S.webOnly ? "None of these look like a website (on Pages, or written in HTML/CSS). Switch the filter off to see them all." : "No repositories here."}</p>`;
     };
     const fetchRepos = async (fresh) => {
       if (S.repos[S.acct] && !fresh) { draw(); return; }
@@ -271,6 +308,7 @@ function deployForm(ctx) {
     m.querySelector("#bpAcct").addEventListener("change", (e) => { S.acct = e.target.value; fetchRepos(); });
     m.querySelector("#bpQ").addEventListener("input", (e) => { S.q = e.target.value; draw(); });
     m.querySelector("#bpRe").addEventListener("click", () => fetchRepos(true));
+    m.querySelector("#bpWeb").addEventListener("change", (e) => { S.webOnly = e.target.checked; draw(); });
     list.addEventListener("click", (e) => {
       const b = e.target.closest("[data-full]"); if (!b) return;
       const r = S.repos[S.acct].find((x) => x.full === b.dataset.full);
@@ -284,7 +322,8 @@ function deployForm(ctx) {
 function deployStep(ctx, r) {
   const { h } = ctx, st = { access: "login" }, domain = S.data?.domain;
   ctx.openModal(`<h2>Deploy ${h(r.name)}</h2>
-    <p><span class="mono">${h(r.full)}</span>${r.private ? " is private: only Burrow downloads it, with your sign-in, and it is served only to whoever has the password." : "."}</p>
+    <p><span class="mono">${h(r.full)}</span>${r.private ? " is private: only Burrow downloads it, with your sign-in, and it is served only to whoever has the password." : "."}
+      Burrow looks for a static website in it (an <span class="mono">index.html</span>); a repository without one is refused, and nothing is changed.</p>
     <form id="bpDF" autocomplete="off">
       <label class="field"><span>Its address</span>
         <div class="addr"><input class="input mono" id="bpSub" maxlength="40" value="${h(subFromRepo(r.name))}" spellcheck="false" autocapitalize="none"><span class="mono zone">.${h(domain?.zone || ctx.zone || "your-domain")}</span></div></label>

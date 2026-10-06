@@ -408,11 +408,11 @@ async function deploy({ account: id, repo: full, sub, access = "login", password
     ? (r.full.split("/")[1].toLowerCase() === `${r.owner.toLowerCase()}.github.io` ? `https://${r.owner.toLowerCase()}.github.io/` : `https://${r.owner.toLowerCase()}.github.io/${r.full.split("/")[1]}/`)
     : `https://${r.full.split("/")[0].toLowerCase()}.gitlab.io/${r.full.split("/").slice(1).join("/")}/`;
   const live = async () => { try { const x = await fetch(pagesUrl, { redirect: "manual", signal: AbortSignal.timeout(12000) }); return x.status === 200; } catch { return false; } };
-  if (r.private) fail(400, `${r.full} has nothing Burrow can serve as files (no index.html, or a Jekyll site), and its Pages site would be public. Commit the built site (a gh-pages branch, or docs/) and deploy again.`);
+  if (r.private) fail(400, `${r.full} isn't a static website Burrow can serve: no index.html in /, docs/, dist/… or a gh-pages branch (or it is a Jekyll site, whose Pages copy would be public). Burrow Pages serves static websites only; commit the built site and deploy again.`);
   if (!(await live())) {
     // 3. turn GitHub Pages on for it, then serve that
     if (r.provider !== "github" || !a.token || !r.admin) {
-      fail(400, `${r.full} has no index.html to serve and no Pages site yet.${r.provider === "github" && !a.token ? " Sign in with GitHub and Burrow can turn Pages on for it." : ""}`);
+      fail(400, `${r.full} isn't a static website: no index.html to serve and no Pages site. Burrow Pages serves static websites only (HTML, CSS, JavaScript, already built); apps that need a server won't run.${r.provider === "github" && !a.token ? " If it is a Jekyll site, sign in with GitHub and Burrow can turn Pages on to build it." : ""}`);
     }
     say("Turning GitHub Pages on for it");
     const docs = branches.includes(r.branch) && (await gh(a, `/repos/${r.full}/contents/docs?ref=${encodeURIComponent(r.branch)}`).then(() => true, () => false));

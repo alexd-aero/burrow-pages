@@ -2,7 +2,7 @@
 
 <h1 align="center">Burrow Pages</h1>
 
-<p align="center"><b>Your GitHub and GitLab repositories on a subdomain of yours, behind a password.</b><br>
+<p align="center"><b>Static websites from your GitHub and GitLab repositories, on a subdomain of yours, behind a password.</b><br>
 An addon for <a href="https://github.com/alexd-aero/aegis-burrow">Aegis × Burrow</a>, in the <a href="https://github.com/alexd-aero/weft">Weft</a> format. Experimental.</p>
 
 ---
@@ -10,6 +10,8 @@ An addon for <a href="https://github.com/alexd-aero/aegis-burrow">Aegis × Burro
 Sign in with a code, pick a repository (the most active ones first), choose a subdomain and who may open it, and it is live at `https://docs.your-domain`, only for whoever has your Aegis login or the site's own password. Private repositories included. Every push shows up within minutes.
 
 No GitHub Pages settings, no DNS records, no `CNAME` file: Burrow does all of it.
+
+> **Static websites only.** Burrow serves a repository's files as they are: HTML, CSS, JavaScript and images, already built (an `index.html` in `/`, `docs/`, `dist/`… or a `gh-pages` branch), or a Jekyll site that GitHub Pages builds. It runs no code: apps that need a server (Node, Python, PHP, a database) won't work. A repository without a static site is refused and nothing is changed.
 
 ## What it does
 
@@ -38,7 +40,7 @@ The file servers answer `GET` and `HEAD` only, never outside the site's folder (
 
 ## GitHub sign-in
 
-The device flow needs a GitHub OAuth app with **Device Flow** enabled. Its client ID is public (there is no secret); set it under *Burrow → Addons → Burrow Pages → ⋯ → Settings and reinstall*. Without one, accounts work by username (public repositories).
+The device flow needs a GitHub OAuth app with **Device Flow** enabled (its *Authorization callback URL* is required by the form but never used; the repository's URL is fine). Its client ID is public (there is no secret); set it under *Burrow → Addons → Burrow Pages → ⋯ → Settings and reinstall*. Without one, accounts work by username (public repositories).
 
 To revoke Burrow's sign-in on GitHub's side: [github.com/settings/applications](https://github.com/settings/applications).
 
