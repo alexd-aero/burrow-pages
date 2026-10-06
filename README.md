@@ -40,7 +40,7 @@ The file servers answer `GET` and `HEAD` only, never outside the site's folder (
 
 ## GitHub sign-in
 
-The device flow needs a GitHub OAuth app with **Device Flow** enabled (its *Authorization callback URL* is required by the form but never used; the repository's URL is fine). Its client ID is public (there is no secret); set it under *Burrow → Addons → Burrow Pages → ⋯ → Settings and reinstall*. Without one, accounts work by username (public repositories).
+The device flow needs a GitHub OAuth app with **Device Flow** enabled (its *Authorization callback URL* is required by the form but never used; the repository's URL is fine). Burrow Pages' own app (client ID `Ov23liJcQorPMpS9k8BX`) is built in; its client ID is public and there is no secret. To use an app of your own instead, set its client ID under *Burrow → Addons → Burrow Pages → ⋯ → Settings and reinstall*, and remember to tick **Enable Device Flow** on it.
 
 To revoke Burrow's sign-in on GitHub's side: [github.com/settings/applications](https://github.com/settings/applications).
 

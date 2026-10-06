@@ -44,6 +44,12 @@ let device = null;              // GitHub sign-in in progress
 let syncTimer = null, stopped = false;
 
 const fail = (status, msg) => { const e = new Error(msg); e.status = status; throw e; };
+// what GitHub's sign-in errors mean for you, in words
+const OAUTH_ERRORS = {
+  device_flow_disabled: "Device Flow is off for this app. On github.com/settings/developers → OAuth Apps → the app, tick “Enable Device Flow”, press Update application, then sign in again.",
+  incorrect_client_credentials: "GitHub doesn't know that client ID. Check it under Burrow → Addons → Burrow Pages → ⋯ → Settings and reinstall.",
+  unsupported_grant_type: "GitHub didn't accept the sign-in request.",
+};
 const now = () => Date.now();
 
 // ------------------------------------------------------------------ state (data/state.json, mode 600)
@@ -79,7 +85,9 @@ async function call(url, { token, method = "GET", body, accept = "application/js
       fail(429, `GitHub's limit for requests ${token ? "" : "without signing in "}is used up until ${at}.${token ? "" : " Sign in with GitHub for many more."}`);
     }
     if (r.status === 401) fail(401, `${provider === "github" ? "GitHub" : "GitLab"} refused the sign-in. Sign in again.`);
-    fail(r.status === 404 ? 404 : 502, (j && (j.message || j.error)) ? `${provider === "github" ? "GitHub" : "GitLab"}: ${j.message || j.error}` : `HTTP ${r.status} from ${new URL(url).host}`);
+    const why = j && (OAUTH_ERRORS[j.error] || j.error_description || j.message || j.error);
+    // their "no" is a 4xx we pass on as one; only a broken answer is a 502
+    fail(r.status === 404 ? 404 : r.status < 500 ? 400 : 502, why ? `${provider === "github" ? "GitHub" : "GitLab"}: ${why}` : `${new URL(url).host} answered HTTP ${r.status}.`);
   }
   return { json: j, headers: r.headers };
 }
@@ -176,7 +184,7 @@ function pollDevice(dv) {
       if (t?.error === "slow_down") dv.interval += 5;
       else if (t?.error === "expired_token") { dv.state = "expired"; return; }
       else if (t?.error === "access_denied") { dv.state = "denied"; return; }
-      else if (t?.error && t.error !== "authorization_pending") { dv.state = "error"; dv.error = t.error_description || t.error; return; }
+      else if (t?.error && t.error !== "authorization_pending") { dv.state = "error"; dv.error = OAUTH_ERRORS[t.error] || t.error_description || t.error; return; }
     } catch (e) { dv.error = e.message; }
     pollDevice(dv);
   }, dv.interval * 1000);

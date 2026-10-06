@@ -2,7 +2,7 @@
   "spec": 1,
   "id": "burrow-pages",
   "name": "Burrow Pages",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Static websites from your GitHub and GitLab repositories, on a subdomain of yours, behind a password. Sign in with a code, pick a repository (the most active first) and Burrow serves its files, private ones included, following every push. Static sites only: no server-side code. Experimental.",
   "author": "Alexd Aero",
   "license": "MIT",
@@ -46,8 +46,8 @@
       "key": "GITHUB_CLIENT_ID",
       "label": "GitHub app client ID",
       "type": "text",
-      "default": "",
-      "help": "The OAuth app Burrow Pages signs in to GitHub with (device flow). Its client ID is public; there is no secret. Empty: accounts by username only."
+      "default": "Ov23liJcQorPMpS9k8BX",
+      "help": "The GitHub OAuth app Burrow Pages signs in with (device flow). Burrow Pages' own is filled in; its client ID is public and there is no secret. Use your own app's ID if you'd rather."
     }
   ],
   "burrow": {
