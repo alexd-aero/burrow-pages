@@ -148,7 +148,8 @@ function removeAccount(id) {
 async function startDevice() {
   const clientId = String(ctx.setting("GITHUB_CLIENT_ID") || "").trim();
   if (!clientId) fail(409, "GitHub sign-in isn't set up yet: Burrow Pages needs its GitHub app's client ID (Burrow → Addons → Burrow Pages → ⋯ → Settings and reinstall). Accounts by username work without it.");
-  const { json: d } = await call(`${GH}/login/device/code`, { method: "POST", body: { client_id: clientId, scope: "repo read:user" } });
+  const { json: d } = await call(`${GH}/login/device/code`, { method: "POST", body: { client_id: clientId, scope: "repo read:user" } })
+    .catch((e) => { if (e.status === 404) fail(400, `GitHub: ${OAUTH_ERRORS.incorrect_client_credentials}`); throw e; });
   if (!d?.device_code) fail(502, d?.error_description || "GitHub didn't give a code.");
   device = { clientId, code: d.device_code, user_code: d.user_code, uri: d.verification_uri || `${GH}/login/device`,
              expires: now() + (d.expires_in || 900) * 1000, interval: Math.max(5, d.interval || 5), state: "pending", account: null, error: null };
