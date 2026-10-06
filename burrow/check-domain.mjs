@@ -23,5 +23,6 @@ process.stdin.on("data", (d) => (raw += d)).on("end", () => {
     const who = s.account ? `@${s.account}` : "an account the records don't name";
     console.log(`${s.provider === "github" ? "GitHub" : "GitLab"} Pages is set up on ${s.names.join(", ")} for ${who}${s.how.includes("verified") ? " (verified)" : ""}.`);
     if (s.account) console.log(`  @${s.account} is added as an account; remove it on the Burrow Pages card if it isn't yours.`);
+    else console.log(`  ${s.provider === "github" ? "GitHub" : "GitLab"} doesn't publish which account owns it: add yours by its username on the Burrow Pages card.`);
   }
 });

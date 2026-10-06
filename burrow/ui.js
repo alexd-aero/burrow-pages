@@ -29,7 +29,8 @@ style.textContent = `
 .bp-domain.warn { border-color: rgba(242,193,78,.3); background: rgba(242,193,78,.06); color: #ecdcb0; }
 .bp-domain svg { flex: none; width: 16px; height: 16px; margin-top: 1px; color: #3ddc97; }
 .bp-domain.warn svg { color: #f2c14e; }
-.bp-domain p { margin: 0; } .bp-domain p + p { margin-top: 4px; color: var(--muted); }
+.bp-domain p { margin: 0; }
+.bp-inline { border: 0; background: none; padding: 0; font: inherit; color: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; } .bp-domain p + p { margin-top: 4px; color: var(--muted); }
 .bp-accts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 12px 0 2px; }
 .bp-k { font: 11px var(--mono); color: var(--faint); text-transform: uppercase; letter-spacing: .08em; margin-right: 4px; }
 .bp-acct { display: inline-flex; align-items: center; gap: 8px; padding: 4px 6px 4px 4px; border: 1px solid var(--line-2); border-radius: 99px; background: rgba(255,255,255,.02); font-size: 12.5px; }
@@ -109,7 +110,9 @@ export function card(ctx) {
 function domainBox(ctx) {
   const { h } = ctx, dm = S.data?.domain;
   if (!dm) return "";
-  const setups = (dm.setups || []).map((s) => `${PROV[s.provider]} Pages is already set up on ${s.names.map((n) => `<span class="mono">${h(n)}</span>`).join(", ")}${s.account ? ` for <b>@${h(s.account)}</b>` : ""}${s.how.includes("verified") ? " (verified)" : ""}.`);
+  const have = new Set((S.data?.accounts || []).map((a) => a.provider));
+  const setups = (dm.setups || []).map((s) => `${PROV[s.provider]} Pages is already set up on ${s.names.map((n) => `<span class="mono">${h(n)}</span>`).join(", ")}${s.account ? ` for <b>@${h(s.account)}</b>` : ""}${s.how.includes("verified") ? " (verified)" : ""}.`
+    + (s.account ? "" : ` Its DNS records don't say which ${PROV[s.provider]} account${have.has(s.provider) ? "." : `: <button class="link bp-inline" data-bp="acct-add" data-provider="${s.provider}">add it by its username</button>.`}`));
   return `<div class="bp-domain${dm.eligible ? "" : " warn"}">${dm.eligible ? CHECK : WARN}<div>
     <p>${dm.linked ? `<b>${h(dm.zone)}</b> is eligible. ` : ""}${h(dm.reason)}</p>
     ${setups.length ? setups.map((x) => `<p>${x}</p>`).join("") : dm.linked && dm.eligible ? `<p>Nothing on ${h(dm.zone)} points at GitHub or GitLab Pages yet.</p>` : ""}
@@ -137,7 +140,7 @@ export function wire(el, ctx) {
     try {
       if (what === "deploy") deployForm(ctx);
       else if (what === "by-address") ctx.tunnelForm(null, null, { site: true });
-      else if (what === "acct-add") accountForm(ctx);
+      else if (what === "acct-add") accountForm(ctx, b.dataset.provider);
       else if (what === "gh-signin") signIn(ctx);
       else if (what === "acct-rm") {
         const a = S.data.accounts.find((x) => x.id === b.dataset.id);
@@ -158,13 +161,13 @@ export function wire(el, ctx) {
 }
 
 // ------------------------------------------------------------------ add an account (just the username)
-function accountForm(ctx) {
-  const st = { provider: "github" };
+function accountForm(ctx, provider) {
+  const st = { provider: provider === "gitlab" ? "gitlab" : "github" };
   ctx.openModal(`<h2>Add an account</h2>
     <p>Just its username. Burrow lists its public repositories; to deploy private ones, <b>Sign in with GitHub</b> instead.</p>
     <form id="bpAcF" autocomplete="off">
-      <div class="field"><span>Where</span><div class="seg" id="bpProv"><button type="button" data-v="github" class="on">GitHub</button><button type="button" data-v="gitlab">GitLab</button></div></div>
-      <label class="field"><span>Username <span class="faint">(a user, or an organization / group)</span></span><input class="input mono" id="bpUser" placeholder="octocat" spellcheck="false" autocapitalize="none"></label>
+      <div class="field"><span>Where</span><div class="seg" id="bpProv"><button type="button" data-v="github" class="${st.provider === "github" ? "on" : ""}">GitHub</button><button type="button" data-v="gitlab" class="${st.provider === "gitlab" ? "on" : ""}">GitLab</button></div></div>
+      <label class="field"><span>Username <span class="faint">(a user, or an organization / group)</span></span><input class="input mono" id="bpUser" placeholder="${st.provider === "github" ? "octocat" : "gitlab-org"}" spellcheck="false" autocapitalize="none"></label>
       <div class="err-msg" id="bpErr"></div>
       <div class="modal-actions"><button type="button" class="btn ghost" data-act="close">Cancel</button><button class="btn primary" id="bpGo">Add it</button></div>
     </form>`, (m) => {
