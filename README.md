@@ -49,7 +49,7 @@ It comes with Aegis × Burrow 2.8.0 and installs itself once. To add it by hand:
 ## Tests
 
 ```bash
-node --test test/
+node --test test/*.test.mjs
 ```
 
 ## Credits
