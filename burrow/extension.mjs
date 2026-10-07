@@ -366,7 +366,7 @@ function job(label, work) {
   return { job: j.id };
 }
 
-async function deploy({ account: id, repo: full, sub, access = "login", password, name }, say) {
+async function deploy({ account: id, repo: full, sub, access = "login", password, name, branch: want }, say) {
   const s = load(), a = account(s, id);
   if (!REPO_RE.test(full || "")) fail(400, "Pick a repository.");
   if (Object.values(s.deploys).some((d) => d.provider === a.provider && d.repo === full)) fail(409, `${full} is already deployed.`);
@@ -376,11 +376,14 @@ async function deploy({ account: id, repo: full, sub, access = "login", password
   const r = a.provider === "github" ? shapeGh(await gh(a, `/repos/${full}`)) : shapeGl(await gl(a, `/projects/${glId(full)}`));
   const meta = { repo: r.full, provider: r.provider, private: r.private };
 
-  // 1. the files, as they are in the repository (a Pages branch first)
+  // 1. the files, as they are in the repository (a Pages branch first, or the
+  //    one you picked)
   const branches = await branchesOf(a, r);
+  if (want && !branches.includes(want)) fail(400, `${r.full} has no branch called ${want}.`);
+  const order = want ? [want] : branchOrder(branches, r.branch).slice(0, 3);
   const tmp = join(ctx.dataDir, "sites", `.dl-${randomBytes(4).toString("hex")}`);
   let found = null;
-  for (const branch of branchOrder(branches, r.branch).slice(0, 3)) {
+  for (const branch of order) {
     say(`Downloading ${r.full}@${branch}`);
     const into = join(tmp, branch.replace(/[^A-Za-z0-9._-]/g, "_"));
     try { await download(a, r, branch, into); } catch (e) { say(`  ${e.message}`); continue; }
@@ -597,6 +600,13 @@ export async function handle({ method, path, query, json, unseal }) {
   if (path === "/github/device" && method === "DELETE") { device = null; return ok({ state: "none" }); }
   m = /^\/repos\/([a-z]+:[A-Za-z0-9._\/-]+)$/.exec(decodeURIComponent(path));
   if (m && method === "GET") return ok({ repos: await listRepos(m[1], query.get("fresh") === "1") });
+  if (path === "/branches" && method === "GET") {
+    const s = load(), a = account(s, query.get("account")), full = query.get("repo") || "";
+    if (!REPO_RE.test(full)) fail(400, "Pick a repository.");
+    const r = { provider: a.provider, full, branch: query.get("default") || "main" };
+    const branches = await branchesOf(a, r);
+    return ok({ branches, default: branchOrder(branches, r.branch)[0] || r.branch });
+  }
   if (path === "/deploy" && method === "POST") {
     const b = await body();
     if (b.sealedPassword) { b.password = String((await unseal(b.sealedPassword)).password || ""); delete b.sealedPassword; }

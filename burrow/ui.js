@@ -328,6 +328,8 @@ function deployStep(ctx, r) {
       <label class="field"><span>Its address</span>
         <div class="addr"><input class="input mono" id="bpSub" maxlength="40" value="${h(subFromRepo(r.name))}" spellcheck="false" autocapitalize="none"><span class="mono zone">.${h(domain?.zone || ctx.zone || "your-domain")}</span></div></label>
       ${domain && !domain.linked ? `<p class="faint small" style="margin:-6px 0 12px">No domain is linked: it gets a random trycloudflare.com address for now.</p>` : ""}
+      <label class="field"><span>Branch</span>
+        <select class="input" id="bpBranch"><option value="">Auto — a Pages branch, else ${h(r.branch)}</option></select></label>
       <div class="field"><span>Who can open it</span><div id="bpAccBox">${ctx.accessSeg("bpAccess", "login", true)}</div></div>
       ${ctx.pwFields(false)}
       <div class="bp-log" id="bpLog" hidden></div>
@@ -336,6 +338,10 @@ function deployStep(ctx, r) {
     </form>`, (m) => {
     const pwBox = m.querySelector("#fPwBox");
     pwBox.hidden = true;
+    const sel = m.querySelector("#bpBranch");
+    ctx.api(`/branches?account=${encodeURIComponent(S.acct)}&repo=${encodeURIComponent(r.full)}&default=${encodeURIComponent(r.branch)}`)
+      .then((bl) => { for (const b of bl.branches) { const o = document.createElement("option"); o.value = b; o.textContent = b + (b === bl.default ? " — picked by Auto" : ""); sel.append(o); } })
+      .catch(() => { sel.disabled = true; });
     m.querySelector("#bpAccBox").addEventListener("click", (e) => {
       const b = e.target.closest("button"); if (!b) return;
       st.access = b.dataset.v;
@@ -351,7 +357,7 @@ function deployStep(ctx, r) {
       try {
         const pw = st.access === "password" ? await ctx.sealedPw(m, true) : {};
         go.disabled = true; go.textContent = "Deploying…";
-        const { job } = await ctx.api("/deploy", { method: "POST", body: JSON.stringify({ account: S.acct, repo: r.full, sub: m.querySelector("#bpSub").value.trim().toLowerCase(), access: st.access, ...pw }) });
+        const { job } = await ctx.api("/deploy", { method: "POST", body: JSON.stringify({ account: S.acct, repo: r.full, sub: m.querySelector("#bpSub").value.trim().toLowerCase(), branch: m.querySelector("#bpBranch").value, access: st.access, ...pw }) });
         log.hidden = false;
         for (;;) {
           await new Promise((ok) => setTimeout(ok, 900));
