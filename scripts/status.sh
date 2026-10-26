@@ -5,10 +5,7 @@ set -uo pipefail
 if [ "${ADDON_HOST:-}" != burrow ] || [ ! -S "${BURROW_SOCKET:-}" ] || [ -z "$NODE" ]; then
   echo '{"state":"error","detail":"needs Aegis × Burrow"}'; exit 0
 fi
-list="$(sites 2>/dev/null)" || { echo '{"state":"error","detail":"Burrow is not answering"}'; exit 0; }
-url="$(dashboard)__gate/tunnels#/pages"
-LIST="$list" URL="$url" "$NODE" -e '
-  const rows = (process.env.LIST || "").split("\n").filter(Boolean).map((l) => l.split("\t"));
-  const on = rows.filter((r) => r[1] === "on").length, n = rows.length;
-  const detail = n ? `${n} site${n === 1 ? "" : "s"}${on < n ? `, ${n - on} paused` : ""}` : "no sites yet";
-  console.log(JSON.stringify({ state: n && !on ? "stopped" : n ? "running" : "installed", detail, url: process.env.URL }));'
+s="$(API_TIMEOUT=8 api GET /x/burrow-pages/status 2>/dev/null)" || { echo '{"state":"installed","detail":"starting"}'; exit 0; }
+URL="$(dashboard)__gate/pages/"
+printf '%s' "$s" | URL="$URL" json '({state: v.sites && !v.on ? "stopped" : "running", detail: v.sites ? `${v.sites} site${v.sites===1?"":"s"}${v.down ? `, ${v.down} down` : ""}${v.on < v.sites ? `, ${v.sites - v.on} paused` : ""}` : "no sites yet", url: process.env.URL})'
+echo
