@@ -1007,9 +1007,9 @@ function legacyModal() {
   const L = S.state.legacy;
   const m = modal(`<div class="modal-h"><div class="grow"><h2>Move into Burrow Pages</h2><p>These answer through Burrow's old Pages proxy. Moved in, each becomes a site here with caching, numbers, health checks, and can be public. The address stays the same.</p></div><button class="btn icon ghost" data-x>${I.x}</button></div>
     <div class="list card">${L.map((x) => `<div class="act" style="grid-template-columns:1fr auto"><div style="min-width:0"><b>${h(x.sub || x.name)}</b><div class="faint small ell">${h(x.url || "")} → ${h(x.target)}</div></div>
-      <div class="row"><select class="inp" data-acc="${x.port}" style="height:32px;width:140px"><option value="public">Everyone</option><option value="login" ${x.access !== "public" ? "selected" : ""}>Your login</option><option value="password">A password</option></select>
+      <div class="row"><select class="inp" data-acc="${x.port}" style="height:32px;width:170px">${x.access === "password" ? `<option value="keep" selected>Its password (kept)</option>` : ""}<option value="public">Everyone</option><option value="login" ${x.access !== "public" && x.access !== "password" ? "selected" : ""}>Your login</option><option value="password">A new password</option></select>
       <button class="btn sm primary" data-act="adopt" data-port="${x.port}">Move</button></div></div>`).join("")}</div>
-    <p class="help">Its old password can't be carried over (Burrow keeps only a hash): pick who can open it now, or set a new password after.</p>`, { wide: true });
+    <p class="help">A site with a password keeps it (Burrow hands its hash over; needs Aegis × Burrow 2.29 or newer), or pick who can open it now.</p>`, { wide: true });
   $("[data-x]", m).onclick = closeModal;
 }
 

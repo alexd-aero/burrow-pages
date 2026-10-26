@@ -24,7 +24,9 @@ import { dashboard } from "../lib/app.mjs";
 import { setAgent } from "../lib/git.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const VERSION = "2.0.0";
+const VERSION = "2.0.1";
+// Aegis × Burrow 2.29 hands a tunnel's password to another ({lockFrom: PORT})
+const handsOver = () => { const [a, b] = String(ctx?.hostVersion || "0").split(".").map(Number); return a > 2 || (a === 2 && b >= 29); };
 let ctx = null, store = null, stats = null, sites = null, app = null;
 
 // Burrow's control socket: the addon's scripts get it as $BURROW_SOCKET. The
@@ -117,15 +119,18 @@ export async function start(c) {
 }
 
 // An old "site" tunnel (Burrow's own Pages proxy) -> a proxy site here, at the same
-// address. Its password can't come along (Burrow keeps only a hash), so it gets
-// the access you pick. The old tunnel goes first: its address is the one the new one takes.
+// address. access "keep" keeps its password: Burrow (2.29+) hands the hash over, the
+// password itself is never seen. The old tunnel goes first: its address is the one the new one takes.
 async function adopt(port, b = {}) {
   const t = ctx.tunnels.list().find((x) => x.port === Number(port) && x.kind === "site");
   if (!t) { const e = new Error("No such site tunnel."); e.status = 404; throw e; }
-  const access = ["login", "password", "public"].includes(b.access) ? b.access : "login";
-  if (access === "password" && !b.password) { const e = new Error("Set a password for it (the old one can't be carried over)."); e.status = 400; throw e; }
+  const keep = b.access === "keep" || (!b.access && t.locked && t.access === "password");
+  if (keep && !t.locked) { const e = new Error("That tunnel has no password to keep."); e.status = 400; throw e; }
+  if (keep && !handsOver()) { const e = new Error("Keeping its password needs Aegis × Burrow 2.29 or newer: update it, or pick who can open it."); e.status = 409; throw e; }
+  const access = keep ? "password" : ["login", "password", "public"].includes(b.access) ? b.access : "login";
+  if (access === "password" && !keep && !b.password) { const e = new Error("Set a password for it."); e.status = 400; throw e; }
   await control("DELETE", `/tunnels/${t.port}`);
-  try { return await sites.create({ type: "proxy", name: String(b.name || t.name || t.sub).slice(0, 60), sub: t.sub, access, password: b.password, proxy: { upstream: t.target, cacheSeconds: 60 } }); }
+  try { return await sites.create({ type: "proxy", name: String(b.name || t.name || t.sub).slice(0, 60), sub: t.sub, access, password: keep ? undefined : b.password, lockFrom: keep ? t.port : undefined, proxy: { upstream: t.target, cacheSeconds: 60 } }); }
   catch (e) { ctx.log(`moving ${t.sub} in failed after its old tunnel was removed (${t.target}):`, e.message); throw e; }
 }
 
