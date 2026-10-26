@@ -24,7 +24,7 @@ import { dashboard } from "../lib/app.mjs";
 import { setAgent } from "../lib/git.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const VERSION = "2.0.1";
+const VERSION = "2.1.0";
 // Aegis × Burrow 2.29 hands a tunnel's password to another ({lockFrom: PORT})
 const handsOver = () => { const [a, b] = String(ctx?.hostVersion || "0").split(".").map(Number); return a > 2 || (a === 2 && b >= 29); };
 let ctx = null, store = null, stats = null, sites = null, app = null;

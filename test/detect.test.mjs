@@ -18,3 +18,10 @@ test("frameworks and their output", () => {
 });
 test("nothing to serve", () => assert.equal(detect(["main.py", "README.md"]).kind, null));
 test("names", () => { assert.equal(subFrom("me/My_Cool.Site"), "my-cool-site"); assert.equal(subFrom("me/me.github.io"), "me"); });
+
+import { cleanGitUrl } from "../lib/git.mjs";
+test("Git addresses people paste", () => {
+  assert.equal(cleanGitUrl("codeberg.org/me/site"), "https://codeberg.org/me/site");
+  assert.equal(cleanGitUrl("https://codeberg.org/me/site.git/"), "https://codeberg.org/me/site.git");
+  for (const bad of ["ssh://git@x/y", "https://x", "https://a.b/c d", "file:///etc", "https://169.254.169.254/x", "https://x.y/$(id)"]) assert.throws(() => cleanGitUrl(bad), /https address|off limits/, bad);
+});

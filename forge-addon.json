@@ -2,16 +2,20 @@
   "spec": 1,
   "id": "burrow-pages",
   "name": "Burrow Pages",
-  "version": "2.0.1",
-  "description": "Your static websites on your own addresses: from GitHub or GitLab (built in a container when they need it), from an upload, or a site that lives elsewhere. Every push deployed, any deploy one click from live again, visitor numbers without cookies, health checks, and your login, a password or public for each.",
+  "version": "2.1.0",
+  "description": "Your static websites on your own addresses: from GitHub or GitLab (any number of accounts, built in a container when they need it), from any Git repository, from an upload, a repository's own Pages site, or a site that lives elsewhere. Every push deployed, any deploy one click from live again, visitor numbers without cookies, health checks, and your login, a password or public for each.",
   "author": "Alexd Aero",
   "license": "MIT",
   "homepage": "https://github.com/alexd-aero/burrow-pages",
   "logo": "logo.svg",
-  "platforms": ["burrow"],
+  "platforms": [
+    "burrow"
+  ],
   "requires": {
     "burrow": ">=2.15.0",
-    "commands": ["curl"]
+    "commands": [
+      "curl"
+    ]
   },
   "scripts": {
     "install": "scripts/install.sh",
@@ -20,11 +24,32 @@
     "status": "scripts/status.sh"
   },
   "actions": [
-    { "id": "open", "label": "Open Burrow Pages", "script": "scripts/open.sh" },
-    { "id": "check", "label": "Check every site", "script": "scripts/check.sh" },
-    { "id": "sync", "label": "Look for new commits", "script": "scripts/sync.sh" },
-    { "id": "pause", "label": "Pause every site", "script": "scripts/pause.sh", "confirm": "Every site stops answering until you resume it. Nothing is deleted." },
-    { "id": "resume", "label": "Resume every site", "script": "scripts/resume.sh" }
+    {
+      "id": "open",
+      "label": "Open Burrow Pages",
+      "script": "scripts/open.sh"
+    },
+    {
+      "id": "check",
+      "label": "Check every site",
+      "script": "scripts/check.sh"
+    },
+    {
+      "id": "sync",
+      "label": "Look for new commits",
+      "script": "scripts/sync.sh"
+    },
+    {
+      "id": "pause",
+      "label": "Pause every site",
+      "script": "scripts/pause.sh",
+      "confirm": "Every site stops answering until you resume it. Nothing is deleted."
+    },
+    {
+      "id": "resume",
+      "label": "Resume every site",
+      "script": "scripts/resume.sh"
+    }
   ],
   "settings": [
     {
@@ -43,21 +68,24 @@
     "theme": "green",
     "style": "glow",
     "icon": "rocket",
-    "badge": "REBUILT",
+    "badge": "NEW",
     "urgency": "recommended",
     "title": "{name} {version}",
-    "tagline": "Rebuilt from scratch: a dashboard of its own, builds, uploads, rollbacks, analytics and public sites.",
+    "tagline": "As many GitHub and GitLab accounts as you like, any Git repository by address, and a repository's own Pages site on your address.",
     "highlights": [
-      "Its own dashboard at /__gate/pages, on phones too, with live deploy logs",
-      "Vite, Astro, Next, Hugo, Jekyll… built in a locked-down container; GitLab tokens",
-      "Upload a folder or a .zip; proxy any site with caching that rides out outages",
-      "Every deploy kept for a one-click rollback; redirects, headers, SPA mode, maintenance",
-      "Visitor numbers without cookies, health checks, and public sites behind the shield"
+      "Any number of GitHub and GitLab accounts, each with its own sign-in",
+      "An expired sign-in says so on that account (Sign in again), never as a sign-out",
+      "Any public Git repository by its https address: Codeberg, Bitbucket, Gitea…",
+      "A repository's own GitHub or GitLab Pages site, served on your address with a cache",
+      "Rebuilt in 2.0: its own app, builds, uploads, rollbacks, analytics, public sites"
     ],
     "button": "Update to {version}",
     "notes": "https://github.com/alexd-aero/burrow-pages#whats-new-in-20"
   },
   "links": [
-    { "label": "How it works", "url": "https://github.com/alexd-aero/burrow-pages#how-it-works" }
+    {
+      "label": "How it works",
+      "url": "https://github.com/alexd-aero/burrow-pages#how-it-works"
+    }
   ]
 }

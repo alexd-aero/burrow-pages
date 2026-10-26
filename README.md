@@ -9,6 +9,12 @@ An addon for <a href="https://github.com/alexd-aero/aegis-burrow">Aegis × Burro
 
 Pick a repository, a folder on your computer, or the address of a site that already exists. It answers at `https://NAME.your-domain` over HTTPS, behind your Aegis login, a password of its own, or open to everyone (still behind your gate's shield). Every push goes live by itself, any earlier deploy is one click from live again, and you see who visits without a cookie or a script in your pages.
 
+## What's new in 2.1
+
+- **As many accounts as you like**, GitHub and GitLab, each signed in on its own (or named by its username for its public repositories). When a provider stops accepting one, that account says *Sign in again*, and your sites from it say why they stopped updating.
+- **Any Git repository by its address**: Codeberg, Bitbucket, Gitea, sourcehut… Public repositories over https, read with git itself (no prompts, no hooks, links as plain files) and followed push by push like the others.
+- **A repository's own Pages site**: when a GitHub or GitLab repository already has one, Burrow can show it on your address (cached, so an outage there isn't one here) instead of building it here.
+
 ## What's new in 2.0
 
 2.0 is a rewrite. 1.x was a card on the Burrow page that proxied GitHub Pages; 2.0 is an app of its own.

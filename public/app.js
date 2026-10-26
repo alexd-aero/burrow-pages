@@ -51,9 +51,10 @@ const I = {
   heart: svg('<path d="M20.8 5.6a5 5 0 0 0-7.1 0L12 7.3l-1.7-1.7a5 5 0 0 0-7.1 7.1L12 21.5l8.8-8.8a5 5 0 0 0 0-7.1z"/>'),
   moon: svg('<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>'),
   shield: svg('<path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/>'),
+  url: svg('<circle cx="6" cy="6" r="2.2"/><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="12" r="2.2"/><path d="M6 8.2v7.6M8 6.8c5 .5 8 2 8.5 3.4M8 17.2c5-.5 8-2 8.5-3.4"/>'),
   eye: svg('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'),
 };
-const PROV = { github: "GitHub", gitlab: "GitLab" };
+const PROV = { github: "GitHub", gitlab: "GitLab", url: "Git" };
 const LANG = { HTML: "#e34c26", CSS: "#563d7c", SCSS: "#c6538c", JavaScript: "#f1e05a", TypeScript: "#3178c6", Vue: "#41b883", Svelte: "#ff3e00", Astro: "#ff5a03",
                Ruby: "#701516", Python: "#3572A5", Go: "#00ADD8", Rust: "#dea584", Java: "#b07219", Shell: "#89e051", MDX: "#fcb32c", Markdown: "#083fa1", Dart: "#00B4AB" };
 
@@ -75,17 +76,18 @@ const mark = (name, cls = "") => `<span class="mono-mark ${cls}" style="backgrou
 const zoneSuffix = () => { const t = Object.values(S.state?.sites || {}).find((x) => x.host && x.sub); return t ? t.host.slice(t.sub.length + 1) : S.state?.zone || ""; };
 
 /* ================================================================ API */
-class ApiError extends Error { constructor(msg, status) { super(msg); this.status = status; } }
+class ApiError extends Error { constructor(msg, status, extra = {}) { super(msg); this.status = status; Object.assign(this, extra); } }
 async function api(path, { method = "GET", body, raw } = {}) {
   const opt = { method, headers: { "X-Pages": "1" }, credentials: "same-origin" };
   if (body !== undefined && !raw) { opt.headers["Content-Type"] = "application/json"; opt.body = JSON.stringify(body); }
   if (raw) opt.body = raw;
   let r;
   try { r = await fetch(`api${path}`, opt); } catch { throw new ApiError("The dashboard didn't answer. Is this machine online?", 0); }
-  if (r.status === 401) { signedOut(); throw new ApiError("You were signed out.", 401); }
   const type = r.headers.get("content-type") || "";
   const j = type.includes("json") ? await r.json().catch(() => null) : await r.text();
-  if (!r.ok) throw new ApiError((j && j.error) || `HTTP ${r.status}`, r.status);
+  // only the gate says "login required": anything else (a provider refusing an account) is not a sign-out
+  if (r.status === 401 && (!j || j.error === "login required" || typeof j !== "object")) { signedOut(); throw new ApiError("You were signed out.", 401); }
+  if (!r.ok) throw new ApiError((j && j.error) || `HTTP ${r.status}`, r.status, { code: j?.code, account: j?.account });
   return j;
 }
 function signedOut() {
@@ -146,7 +148,8 @@ function status(s) {
 }
 const accessChip = (a) => a === "public" ? `<span class="chip pub">${I.globe}Public</span>` : a === "password" ? `<span class="chip">${I.key}Password</span>` : `<span class="chip">${I.lock}Your login</span>`;
 function sourceLine(s) {
-  if (s.type === "git") return `<span class="site-src">${I[s.source.provider]}<span class="ell">${h(s.source.repo)}</span><span class="faint">·</span>${I.branch}<span class="ell">${h(s.source.branch)}</span>${s.source.mode === "build" ? `<span class="chip">${I.box}build</span>` : ""}</span>`;
+  if (s.type === "git") return `<span class="site-src">${I[s.source.provider]}<span class="ell">${h(s.source.provider === "url" ? s.source.repo.replace(/^https:\/\//, "") : s.source.repo)}</span><span class="faint">·</span>${I.branch}<span class="ell">${h(s.source.branch)}</span>${s.source.mode === "build" ? `<span class="chip">${I.box}build</span>` : ""}</span>`;
+  if (s.type === "proxy" && s.source.pages) return `<span class="site-src">${I[s.source.pages.provider]}<span class="ell">${h(s.source.pages.repo)}</span><span class="chip">${I.globe}${PROV[s.source.pages.provider]} Pages</span></span>`;
   if (s.type === "proxy") return `<span class="site-src">${I.globe}<span class="ell">${h(String(s.source.upstream || "").replace(/^https?:\/\//, ""))}</span></span>`;
   return `<span class="site-src">${I.upload}<span>Uploaded files</span></span>`;
 }
@@ -304,6 +307,8 @@ const sourceCards = () => `
 /* ================================================================ new site */
 function renderNew(r) {
   const kind = r.id;
+  // a finished wizard (or the source chooser) starts the next one fresh
+  if (!kind || (S.wiz && S.wiz.step >= 3)) S.wiz = null;
   if (!kind) {
     main.innerHTML = `<div class="crumbs"><a href="#/">Sites</a>${I.chev}<span>New site</span></div>
       <div class="page-h"><div class="grow"><h1>New site</h1><p>Where does it come from?</p></div></div><div class="sources">${sourceCards()}</div>`;
@@ -400,38 +405,60 @@ function paintWizard() {
 }
 
 /* ---------------- repository wizard ---------------- */
+const reauthNotice = (a) => `<div class="notice warn">${I.warn}<div class="grow"><b>${h(a.username)}</b> needs signing in again: ${PROV[a.provider]} refused its sign-in (it expired or was revoked).</div><button class="btn sm primary" data-act="reauth" data-id="${h(a.id)}">Sign in again</button></div>`;
 function paintGitWizard() {
   const w = S.wiz, accts = S.state.accounts;
   if (w.step === 0) {
-    if (!w.acct && accts.length) w.acct = (accts.find((a) => a.signedIn) || accts[0]).id;
+    if (!w.acct && accts.length) w.acct = (accts.find((a) => a.signedIn && !a.needsSignIn) || accts[0]).id;
+    const flagged = accts.find((a) => a.id === w.acct && a.needsSignIn);
     main.innerHTML = wizShell("From a repository", "Pick the repository. The ones with the most commits and the most recent activity come first.", 3, 0, `
       <div class="card pad">
-        ${accts.length ? `<div class="acct-pick" id="wAccts">${accts.map((a) => `<button data-acct="${h(a.id)}" class="${w.acct === a.id ? "on" : ""}">${avatar(a)}${I[a.provider]}<span>${h(a.username)}</span>${a.signedIn ? "" : `<span class="faint tiny">public only</span>`}</button>`).join("")}<button data-act="acct-add">${I.plus}<span>Add an account</span></button></div>`
-          : `<div class="notice">${I.info}<div class="grow">Connect GitHub or GitLab first: sign in for private repositories, or just name an account for its public ones.</div><button class="btn sm primary" data-act="acct-add">Connect an account</button></div>`}
-        ${w.acct ? `<div class="row" style="margin-bottom:10px"><input class="inp grow" id="wQ" placeholder="Search repositories" value="${h(w.q)}" autocomplete="off"><button class="btn icon" data-act="repos-fresh" title="Load again">${I.sync}</button></div>
+        <div class="acct-pick" id="wAccts">${accts.map((a) => `<button data-acct="${h(a.id)}" class="${w.acct === a.id ? "on" : ""}">${avatar(a)}${I[a.provider]}<span>${h(a.username)}</span>${a.needsSignIn ? `<span class="warnc tiny">sign in again</span>` : a.signedIn ? "" : `<span class="faint tiny">public only</span>`}</button>`).join("")}
+          <button data-acct="url" class="${w.acct === "url" ? "on" : ""}">${I.url}<span>Any Git address</span></button>
+          <button data-act="acct-add">${I.plus}<span>Add an account</span></button></div>
+        ${!accts.length && w.acct !== "url" ? `<div class="notice">${I.info}<div class="grow">Connect GitHub or GitLab (as many accounts as you like): sign in for private repositories, or just name an account for its public ones. Or use any public Git address.</div><button class="btn sm primary" data-act="acct-add">Connect an account</button></div>` : ""}
+        ${flagged ? reauthNotice(flagged) : ""}
+        ${w.acct === "url" ? `<label class="f"><span>The repository's https address</span><div class="row"><input class="inp mono grow" id="wGitUrl" placeholder="https://codeberg.org/you/site" value="${h(w.gitUrl || "")}" spellcheck="false" autocapitalize="none"><button class="btn primary" data-act="git-url">Look</button></div></label>
+          <div class="help">Codeberg, Bitbucket, Gitea, sourcehut, any public Git repository over https. Burrow reads it with git and follows its pushes.</div>`
+        : w.acct && !flagged ? `<div class="row" style="margin-bottom:10px"><input class="inp grow" id="wQ" placeholder="Search repositories" value="${h(w.q)}" autocomplete="off"><button class="btn icon" data-act="repos-fresh" title="Load again">${I.sync}</button></div>
         <div class="repos" id="wRepos"><div class="skel" style="height:220px;margin:12px"></div></div>
         <div class="help">Or type <span class="mono">owner/repository</span> above for one that isn't listed.</div>` : ""}
       </div>`);
-    if (w.acct) { loadRepos(false); $("#wQ").oninput = (e) => { w.q = e.target.value; paintRepos(); }; }
+    if (w.acct && w.acct !== "url" && !flagged) { loadRepos(false); $("#wQ").oninput = (e) => { w.q = e.target.value; paintRepos(); }; }
+    if (w.acct === "url") $("#wGitUrl").onkeydown = (e) => { if (e.key === "Enter") $('[data-act="git-url"]').click(); };
     return;
   }
   if (w.step === 1) {
     const d = w.det;
-    main.innerHTML = wizShell(w.repo.full, `${PROV[w.repo.provider]} repository${w.repo.private ? " · private" : ""}${w.repo.description ? ` · ${h(w.repo.description)}` : ""}`, 3, 1, `
-      <div class="card pad">
+    main.innerHTML = wizShell(w.repo.provider === "url" ? w.repo.name : w.repo.full, `${w.repo.provider === "url" ? h(w.repo.full) : `${PROV[w.repo.provider]} repository`}${w.repo.private ? " · private" : ""}${w.repo.description ? ` · ${h(w.repo.description)}` : ""}`, 3, 1, `
+      ${w.pages ? `<div class="card pad" style="margin-bottom:14px"><div class="lbl">This repository already has a ${PROV[w.repo.provider]} Pages site</div>
+        <div class="seg full" id="wPagesMode"><button data-v="files" class="${w.usePages ? "" : "on"}">${I.box}Serve its files here</button><button data-v="pages" class="${w.usePages ? "on" : ""}">${I.globe}Use its Pages site</button></div>
+        <div class="help">${w.usePages ? `Your address shows <span class="mono">${h(w.pages.url)}</span> (${PROV[w.repo.provider]} builds and hosts it), cached so an outage there isn't one here.` : `Burrow downloads the repository and serves it (built here when it needs it). Its Pages site is <a class="ok" href="${h(w.pages.url)}" target="_blank" rel="noopener">${h(w.pages.url)}</a>.`}</div>
+        ${w.usePages ? `<div class="modal-f"><button class="btn ghost" data-act="wiz-back">Back</button><button class="btn primary" data-act="wiz-pages-next">Next: its address</button></div>` : ""}</div>` : ""}
+      <div class="card pad${w.usePages ? " hidden" : ""}">
         <div class="grid2"><label class="f"><span>Branch</span><select class="inp" id="wBranch">${w.branches.map((b) => `<option ${b === w.branch ? "selected" : ""}>${h(b)}</option>`).join("")}</select></label>
           <label class="f" style="margin-top:0"><span>Folder <span class="faint">(optional)</span></span><input class="inp mono" id="wPath" value="${h(w.path || "")}" placeholder="the top of the repository" spellcheck="false"></label></div>
         <div id="wDetect">${d ? detectBox(d) : `<div class="skel" style="height:74px;margin:14px 0"></div>`}</div>
         <div id="wBuild" class="${w.mode === "build" ? "" : "hidden"}">${buildFields(w.build || {})}</div>
         <div class="modal-f"><button class="btn ghost" data-act="wiz-back">Back</button><button class="btn primary" data-act="wiz-git-next" ${d ? "" : "disabled"}>Next: its address</button></div>
       </div>`);
+    $("#wPagesMode")?.addEventListener("click", (e) => { const b = e.target.closest("[data-v]"); if (!b) return; w.usePages = b.dataset.v === "pages"; paintGitWizard(); });
+    if (w.usePages) return;
     $("#wBranch").onchange = (e) => { w.branch = e.target.value; runDetect(); };
     let t = null; $("#wPath").oninput = (e) => { w.path = e.target.value.trim().replace(/^\/+|\/+$/g, ""); clearTimeout(t); t = setTimeout(runDetect, 500); };
     if (!d) runDetect();
     return;
   }
+  if (w.step === 2 && w.usePages) {
+    main.innerHTML = wizShell(w.repo.full, `Its ${PROV[w.repo.provider]} Pages site, <span class="mono">${h(w.pages.url)}</span>, on your address`, 3, 2, `
+      <div class="card pad">${addressFields(w, { name: w.repo.name })}
+        <div class="modal-f"><button class="btn ghost" data-act="wiz-back">Back</button><button class="btn primary" data-act="wiz-pages-create">${I.rocket}Create the site</button></div></div>`);
+    if (!w.sub) { $("#wSub").value = slug(w.repo.name); w.sub = $("#wSub").value; }
+    wireAddress(w);
+    return;
+  }
   if (w.step === 2) {
-    main.innerHTML = wizShell(w.repo.full, `${w.mode === "build" ? `Built with ${h(w.build?.name || w.build?.image || "a container")}` : `Served as it is from ${w.path ? h(w.path) + "/" : "the top folder"}`} · ${h(w.branch)}`, 3, 2, `
+    main.innerHTML = wizShell(w.repo.provider === "url" ? w.repo.name : w.repo.full, `${w.mode === "build" ? `Built with ${h(w.build?.name || w.build?.image || "a container")}` : `Served as it is from ${w.path ? h(w.path) + "/" : "the top folder"}`} · ${h(w.branch)}`, 3, 2, `
       <div class="card pad">${addressFields(w, { name: w.repo.name })}
         <div class="divider"></div>
         <div class="toggle-row"><label class="switch"><input type="checkbox" id="wAuto" ${w.auto !== false ? "checked" : ""}><i></i></label><div><b>Deploy every push</b><span>Burrow looks for new commits on ${h(w.branch)} every few minutes (Settings) and deploys them.</span></div></div>
@@ -444,7 +471,7 @@ function paintGitWizard() {
   }
   // step 3: deploying
   const j = S.jobs.get(w.job);
-  main.innerHTML = wizShell(w.repo.full, "Deploying. You can leave this page: it carries on, and the site's page shows how it went.", 3, 3, `
+  main.innerHTML = wizShell(w.repo.provider === "url" ? w.repo.name : w.repo.full, "Deploying. You can leave this page: it carries on, and the site's page shows how it went.", 3, 3, `
     ${j ? jobBox(j) : ""}
     <a class="btn primary" href="#/site/${w.siteId}">Go to the site</a>`);
 }
@@ -471,7 +498,7 @@ async function runDetect() {
   const w = S.wiz; w.det = null;
   const box = $("#wDetect"); if (box) box.innerHTML = `<div class="skel" style="height:74px;margin:14px 0"></div>`;
   try {
-    const a = w.acct ? `account=${encodeURIComponent(w.acct)}&` : `provider=${w.repo.provider}&`;
+    const a = w.acct && w.acct !== "url" ? `account=${encodeURIComponent(w.acct)}&` : `provider=${w.repo.provider}&`;
     const d = await api(`/detect?${a}repo=${encodeURIComponent(w.repo.full)}&branch=${encodeURIComponent(w.branch)}&path=${encodeURIComponent(w.path || "")}`);
     w.det = d;
     if (d.kind === "build") { w.mode = "build"; w.build = { ...d.build }; } else { w.mode = "static"; }
@@ -485,7 +512,11 @@ async function loadRepos(fresh) {
   try {
     if (fresh || !S.repos[w.acct]) S.repos[w.acct] = (await api(`/accounts/${encodeURIComponent(w.acct)}/repos${fresh ? "?fresh=1" : ""}`)).repos;
     paintRepos();
-  } catch (e) { const el = $("#wRepos"); if (el) el.innerHTML = `<div class="notice err" style="margin:12px">${I.warn}<div>${h(e.message)}</div></div>`; }
+  } catch (e) {
+    const el = $("#wRepos"); if (!el) return;
+    if (e.code === "reauth") { await loadState(); const a = S.state.accounts.find((x) => x.id === w.acct); el.innerHTML = `<div style="margin:12px">${a ? reauthNotice(a) : h(e.message)}</div>`; return; }
+    el.innerHTML = `<div class="notice err" style="margin:12px">${I.warn}<div>${h(e.message)}</div></div>`;
+  }
 }
 function paintRepos() {
   const w = S.wiz, el = $("#wRepos"); if (!el) return;
@@ -501,13 +532,13 @@ function paintRepos() {
 }
 async function pickRepo(full) {
   const w = S.wiz;
-  const a = w.acct ? `account=${encodeURIComponent(w.acct)}` : "provider=github";
+  const a = w.acct === "url" ? "provider=url" : w.acct ? `account=${encodeURIComponent(w.acct)}` : "provider=github";
   main.querySelector(".card").style.opacity = ".6";
   try {
     const r = await api(`/repo?${a}&repo=${encodeURIComponent(full)}`);
-    Object.assign(w, { repo: r.repo, branches: r.branches, branch: r.suggested, path: "", det: null, step: 1, sub: "", subTouched: false, name: r.repo.name });
+    Object.assign(w, { repo: r.repo, branches: r.branches, branch: r.suggested, path: "", det: null, step: 1, sub: "", subTouched: false, name: r.repo.name, pages: r.pages || null, usePages: false });
     paintGitWizard();
-  } catch (e) { toast(e.message, "err"); main.querySelector(".card").style.opacity = ""; }
+  } catch (e) { toast(e.message, "err"); const c = main.querySelector(".card"); if (c) c.style.opacity = ""; if (e.code === "reauth") { await loadState(); paintGitWizard(); } }
 }
 
 /* ---------------- uploads ---------------- */
@@ -654,13 +685,14 @@ function tabOverview(s, el) {
         ${c.rules?.redirects || c.rules?.headers ? `<dt>Rules</dt><dd>${[c.rules.redirects && "_redirects", c.rules.headers && "_headers"].filter(Boolean).join(", ")}</dd>` : ""}
       </dl>` : `<p class="muted" style="margin:0">${s.type === "upload" ? `Nothing yet. <button class="btn sm" data-act="upload">${I.upload}Upload files</button>` : "Nothing deployed yet."}</p>`}</div>` : ""}
     ${s.type === "git" ? `<div class="card pad"><h3>Source</h3><dl class="kv" style="margin-top:12px">
-        <dt>Repository</dt><dd>${I[s.source.provider]} <a href="https://${s.source.provider}.com/${h(s.source.repo)}" target="_blank" rel="noopener">${h(s.source.repo)}</a>${s.source.private ? ` <span class="chip">${I.lock}private</span>` : ""}</dd>
+        <dt>Repository</dt><dd>${I[s.source.provider]} <a href="${h(s.source.provider === "url" ? s.source.repo : `https://${s.source.provider}.com/${s.source.repo}`)}" target="_blank" rel="noopener">${h(s.source.provider === "url" ? s.source.repo.replace(/^https:\/\//, "") : s.source.repo)}</a>${s.source.private ? ` <span class="chip">${I.lock}private</span>` : ""}</dd>
         <dt>Branch</dt><dd class="mono">${h(s.source.branch)}${s.source.path ? ` · ${h(s.source.path)}/` : ""}</dd>
         <dt>Build</dt><dd>${s.source.mode === "build" ? `<span class="mono">${h(s.source.build?.command || "")}</span> → <span class="mono">${h(s.source.build?.output || "")}/</span>` : "None: served as it is"}</dd>
         <dt>Pushes</dt><dd>${s.source.autoDeploy !== false ? `Deployed as they come${s.sync?.checked ? ` <span class="faint">· checked ${ago(s.sync.checked)}</span>` : ""}` : "Deployed when you press Deploy"}${s.sync?.error ? `<div class="bad small">${h(s.sync.error)}</div>` : ""}${s.sync?.pending && s.sync.pending !== s.current?.sha ? `<div class="warnc small">New commit ${h(s.sync.pending.slice(0, 7))} waiting</div>` : ""}</dd>
       </dl><div class="row" style="margin-top:14px"><button class="btn sm" data-act="sync">${I.sync}Look for new commits</button></div></div>` : ""}
     ${s.type === "proxy" ? `<div class="card pad"><h3>Original</h3><dl class="kv" style="margin-top:12px">
         <dt>Address</dt><dd><a class="mono" href="${h(s.proxy.upstream)}" target="_blank" rel="noopener">${h(s.proxy.upstream)}</a></dd>
+        ${s.proxy.pages ? `<dt>Pages of</dt><dd>${I[s.proxy.pages.provider]} <a href="https://${s.proxy.pages.provider}.com/${h(s.proxy.pages.repo)}" target="_blank" rel="noopener">${h(s.proxy.pages.repo)}</a></dd>` : ""}
         <dt>Cache</dt><dd>${s.proxy.cacheSeconds ? `${({ 30: "30 seconds", 60: "A minute", 300: "5 minutes", 3600: "An hour", 86400: "A day" })[s.proxy.cacheSeconds] || secs(s.proxy.cacheSeconds)}, and the last copy for a day if the original breaks` : "Off: every request goes to the original"}</dd>
         <dt>Links</dt><dd>${s.proxy.rewriteLinks ? "Rewritten to your address" : "As they are"}</dd></dl></div>` : ""}
   </div><div class="stack">
@@ -899,18 +931,23 @@ async function saveSettings(btn) {
 /* ================================================================ accounts */
 function renderAccounts() {
   const list = S.state.accounts;
-  main.innerHTML = `<div class="page-h"><div class="grow"><h1>Accounts</h1><p>GitHub and GitLab accounts Burrow reads repositories from. Sign-ins are sealed on this machine and never shown again.</p></div>
-      <button class="btn primary" data-act="acct-add">${I.plus}Add an account</button></div>
-    <div class="card">${list.length ? `<div class="list">${list.map((a) => `<div class="act" style="grid-template-columns:38px 1fr auto">${avatar(a, "lg")}
-      <div style="min-width:0"><div class="row" style="gap:7px">${I[a.provider]}<b>${h(a.username)}</b>${a.name ? `<span class="muted ell">${h(a.name)}</span>` : ""}${a.kind !== "user" ? `<span class="chip">${h(a.kind)}</span>` : ""}</div>
-        <div class="faint small">${a.signedIn ? `<span class="ok">Signed in</span> (${h(a.via || "token")})${a.scopes ? ` · ${h(a.scopes)}` : ""}` : "Public repositories only"} · ${a.sites} site${a.sites === 1 ? "" : "s"} · added ${ago(a.added)}</div></div>
-      <div class="row">${a.provider === "github" && !a.signedIn && S.state.github.signIn ? `<button class="btn sm" data-act="gh-signin">Sign in</button>` : ""}<button class="btn sm ghost" data-act="acct-remove" data-id="${h(a.id)}" title="Remove">${I.trash}</button></div></div>`).join("")}</div>`
-      : `<div class="empty"><div class="mark">${I.people}</div><h2>No accounts yet</h2><p>Connect GitHub or GitLab to deploy straight from your repositories.</p><button class="btn primary" data-act="acct-add">${I.plus}Add an account</button></div>`}</div>
-    <p class="faint small" style="margin-top:14px">To revoke a GitHub sign-in on GitHub's side too: github.com/settings/applications. GitLab tokens: gitlab.com/-/user_settings/personal_access_tokens.</p>`;
+  const row = (a) => `<div class="act" style="grid-template-columns:38px 1fr auto">${avatar(a, "lg")}
+      <div style="min-width:0"><div class="row" style="gap:7px"><b>${h(a.username)}</b>${a.name ? `<span class="muted ell">${h(a.name)}</span>` : ""}${a.kind !== "user" ? `<span class="chip">${h(a.kind)}</span>` : ""}</div>
+        <div class="faint small">${a.needsSignIn ? `<span class="warnc">Needs signing in again</span>` : a.signedIn ? `<span class="ok">Signed in</span> (${h(a.via || "token")})${a.scopes ? ` · ${h(a.scopes)}` : ""}` : "Public repositories only"} · ${a.sites} site${a.sites === 1 ? "" : "s"} · added ${ago(a.added)}</div></div>
+      <div class="row">${a.needsSignIn || (!a.signedIn && (a.provider === "gitlab" || S.state.github.signIn)) ? `<button class="btn sm ${a.needsSignIn ? "primary" : ""}" data-act="reauth" data-id="${h(a.id)}">${a.needsSignIn ? "Sign in again" : "Sign in"}</button>` : ""}<button class="btn sm ghost" data-act="acct-remove" data-id="${h(a.id)}" title="Remove">${I.trash}</button></div></div>`;
+  const group = (prov) => {
+    const mine = list.filter((a) => a.provider === prov);
+    return `<div class="section-h"><h2 class="grow row" style="gap:8px">${I[prov]}${PROV[prov]} <span class="faint" style="font-weight:500">${mine.length || ""}</span></h2><button class="btn sm" data-act="acct-add-${prov}">${I.plus}Add a ${PROV[prov]} account</button></div>
+      <div class="card">${mine.length ? `<div class="list">${mine.map(row).join("")}</div>` : `<div class="empty" style="padding:26px"><p class="muted" style="margin:0">No ${PROV[prov]} accounts yet. Add as many as you like: yours, an organization's, a friend's.</p></div>`}</div>`;
+  };
+  main.innerHTML = `<div class="page-h"><div class="grow"><h1>Accounts</h1><p>As many GitHub and GitLab accounts as you like. Sign-ins are sealed on this machine and never shown again; an account named by its username shows its public repositories.</p></div></div>
+    ${list.filter((a) => a.needsSignIn).map(reauthNotice).join("")}
+    ${group("github")}${group("gitlab")}
+    <p class="faint small" style="margin-top:14px">Any other public Git repository (Codeberg, Bitbucket, Gitea…) needs no account: New site → From a repository → Any Git address. To revoke a GitHub sign-in on GitHub's side too: github.com/settings/applications. GitLab tokens: gitlab.com/-/user_settings/personal_access_tokens.</p>`;
 }
 function acctModal() {
   const f = S.acctForm ||= { provider: "github", how: S.state.github.signIn ? "signin" : "token" };
-  const m = modal(`<div class="modal-h"><div class="grow"><h2>Add an account</h2><p>Sign in for private repositories, or name any account for its public ones.</p></div><button class="btn icon ghost" data-x>${I.x}</button></div>
+  const m = modal(`<div class="modal-h"><div class="grow"><h2>${f.reauth ? `Sign in to ${h(f.reauth)} again` : "Add an account"}</h2><p>${f.reauth ? `Sign in as ${h(f.reauth)} (on ${PROV[f.provider]}, be signed in as that account first).` : "Sign in for private repositories, or name any account for its public ones. Add as many as you like."}</p></div><button class="btn icon ghost" data-x>${I.x}</button></div>
     <div class="seg full" id="aProv" style="margin-bottom:14px"><button data-v="github" class="${f.provider === "github" ? "on" : ""}">${I.github}GitHub</button><button data-v="gitlab" class="${f.provider === "gitlab" ? "on" : ""}">${I.gitlab}GitLab</button></div>
     <div class="seg full" id="aHow" style="margin-bottom:16px">${f.provider === "github" && S.state.github.signIn ? `<button data-v="signin" class="${f.how === "signin" ? "on" : ""}">Sign in</button>` : ""}<button data-v="token" class="${f.how === "token" ? "on" : ""}">Token</button><button data-v="name" class="${f.how === "name" ? "on" : ""}">Username</button></div>
     <div id="aBody"></div>`, { onClose: () => { if (S.device) api("/github/device", { method: "DELETE" }).catch(() => {}); S.device = null; } });
@@ -941,7 +978,7 @@ async function devStart(btn) {
         S.device = await api("/github/device").catch(() => S.device);
         paintDevice();
         if (S.device?.state === "pending") setTimeout(poll, 2500);
-        if (S.device?.state === "done") { toast(`Signed in as ${S.device.account.username}`); S.device = null; closeModal(); await loadState(); render(); }
+        if (S.device?.state === "done") { toast(`Signed in as ${S.device.account.username}`); S.device = null; S.acctForm = null; closeModal(); await loadState(); render(); }
       };
       setTimeout(poll, 2500);
     } catch (e) { toast(e.message, "err"); }
@@ -1019,6 +1056,8 @@ document.addEventListener("click", async (e) => {
   const cp = e.target.closest("[data-copy]"); if (cp) { e.preventDefault(); return copy(cp.dataset.copy); }
   const go = e.target.closest("[data-go]"); if (go && !e.target.closest("a,button:not([data-go])")) { location.hash = go.dataset.go; return; }
   const acct = e.target.closest("[data-acct]"); if (acct) { S.wiz.acct = acct.dataset.acct; S.wiz.q = ""; return paintGitWizard(); }
+  const ra = e.target.closest('[data-act="reauth"]');
+  if (ra) { const a = S.state.accounts.find((x) => x.id === ra.dataset.id); S.acctForm = { provider: a.provider, how: a.provider === "github" && S.state.github.signIn ? "signin" : "token", reauth: a.username }; return acctModal(); }
   const repoEl = e.target.closest("[data-repo-full]"); if (repoEl) return pickRepo(repoEl.dataset.repoFull);
   const el = e.target.closest("[data-act]"); if (!el) return;
   const act = el.dataset.act, r = route(), s = S.sites[r.id], w = S.wiz;
@@ -1032,13 +1071,14 @@ document.addEventListener("click", async (e) => {
       return busy(el, async () => { const out = await api(`/legacy/${port}/adopt`, { method: "POST", body: { access, password } }); closeModal(); toast("Moved in"); await loadState(); location.hash = `#/site/${out.site.id}`; render(); });
     }
     // ---- wizard
-    if (act === "acct-add") return acctModal();
+    if (act === "acct-add") { S.acctForm = null; return acctModal(); }
+    if (act === "acct-add-github" || act === "acct-add-gitlab") { const prov = act.slice(9); S.acctForm = { provider: prov, how: prov === "github" && S.state.github.signIn ? "signin" : "token" }; return acctModal(); }
     if (act === "gh-signin") { S.acctForm = { provider: "github", how: "signin" }; return acctModal(); }
     if (act === "dev-start") return devStart(el);
     if (act === "acct-save") {
       const f = S.acctForm, body = { provider: f.provider };
       if (f.how === "token") body.token = $("#aToken").value.trim(); else body.username = $("#aName").value.trim();
-      return busy(el, async () => { const a = await api("/accounts", { method: "POST", body }); toast(`${a.username} connected`); closeModal(); await loadState(); if (S.wiz?.kind === "git") { S.wiz.acct = a.id; delete S.repos?.[a.id]; } render(); });
+      return busy(el, async () => { const a = await api("/accounts", { method: "POST", body }); toast(`${a.username} connected`); S.acctForm = null; closeModal(); await loadState(); if (S.wiz?.kind === "git") { S.wiz.acct = a.id; delete S.repos?.[a.id]; } render(); });
     }
     if (act === "acct-remove") {
       const a = S.state.accounts.find((x) => x.id === el.dataset.id);
@@ -1046,7 +1086,16 @@ document.addEventListener("click", async (e) => {
       const out = await api(`/accounts/${encodeURIComponent(a.id)}`, { method: "DELETE" }); toast(out.note || "Removed"); await loadState(); return render();
     }
     if (act === "repos-fresh") return busy(el, () => loadRepos(true));
-    if (act === "wiz-back") { w.step--; return paintWizard(); }
+    if (act === "wiz-back") { if (w.step === 1 && w.usePages) w.usePages = false; w.step--; return paintWizard(); }
+    if (act === "git-url") { const u = $("#wGitUrl").value.trim(); if (!u) return; w.gitUrl = u; return busy(el, () => pickRepo(u)); }
+    if (act === "wiz-pages-next") { w.step = 2; return paintGitWizard(); }
+    if (act === "wiz-pages-create") {
+      const addr = readAddress(w);
+      return busy(el, async () => {
+        const out = await api("/sites", { method: "POST", body: { type: "proxy", ...addr, proxy: { upstream: w.pages.url, cacheSeconds: 60, pages: { provider: w.repo.provider, repo: w.repo.full } } } });
+        S.wiz = null; toast(`${addr.name} is live`); await loadState(); location.hash = `#/site/${out.site.id}`;
+      });
+    }
     if (act === "use-dir") { w.path = el.dataset.v; $("#wPath").value = w.path; return runDetect(); }
     if (act === "force-build") { w.mode = "build"; w.build = { image: "node:22-alpine", command: "npm install && npm run build", output: "dist" }; return paintGitWizard(); }
     if (el.closest("#wMode")) return;
