@@ -24,7 +24,7 @@ import { dashboard } from "../lib/app.mjs";
 import { setAgent } from "../lib/git.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const VERSION = "2.1.0";
+const VERSION = "2.2.0";
 // Aegis × Burrow 2.29 hands a tunnel's password to another ({lockFrom: PORT})
 const handsOver = () => { const [a, b] = String(ctx?.hostVersion || "0").split(".").map(Number); return a > 2 || (a === 2 && b >= 29); };
 let ctx = null, store = null, stats = null, sites = null, app = null;
@@ -103,7 +103,7 @@ export async function start(c) {
 
   // the dashboard: a key of its own (the gate adds it to every request it passes on)
   if (!store.s.app?.key) store.mutate((s) => { s.app = { ...(s.app || {}), key: randomBytes(32).toString("hex") }; });
-  const ext = { ...ctx, adopt };
+  const ext = { ...ctx, adopt, adoptPort, returnPort, adoptable };
   app = dashboard({ store, sites, ctx: ext, key: store.s.app.key, publicDir: join(HERE, "..", "public"), version: VERSION });
   const want = store.s.app.port || 0;
   await new Promise((ok, no) => {
@@ -132,6 +132,47 @@ async function adopt(port, b = {}) {
   await control("DELETE", `/tunnels/${t.port}`);
   try { return await sites.create({ type: "proxy", name: String(b.name || t.name || t.sub).slice(0, 60), sub: t.sub, access, password: keep ? undefined : b.password, lockFrom: keep ? t.port : undefined, proxy: { upstream: t.target, cacheSeconds: 60 } }); }
   catch (e) { ctx.log(`moving ${t.sub} in failed after its old tunnel was removed (${t.target}):`, e.message); throw e; }
+}
+
+// A port tunnel from Burrow's Tunnels tab -> a port site here, at the same address
+// (its name, or its number when it has none) and with its password (handed over).
+// The old tunnel goes first: its address is the one the new one takes; if the new
+// site can't be made, the old tunnel is put back as it was.
+const adoptable = (t) => (t.kind || "port") === "port" && !t.app;
+async function adoptPort(port, b = {}) {
+  const t = ctx.tunnels.list().find((x) => x.port === Number(port) && adoptable(x));
+  if (!t) { const e = new Error("No such port tunnel (or it belongs to an addon)."); e.status = 404; throw e; }
+  const keep = (b.access === "keep" || !b.access) && t.access === "password" && t.locked;
+  if (keep && !handsOver()) { const e = new Error("Keeping its password needs Aegis × Burrow 2.29 or newer: update it, or pick who can open it."); e.status = 409; throw e; }
+  const access = keep ? "password" : ["login", "password", "public"].includes(b.access) ? b.access : t.access === "password" ? "login" : t.access;
+  if (access === "password" && !keep && !b.password) { const e = new Error("Set a password for it."); e.status = 400; throw e; }
+  const target = { machine: "this", host: t.targetHost || "127.0.0.1", port: t.targetPort || t.port, scheme: t.scheme === "https" ? "https" : "http", insecure: true, keepHost: !!t.preserveHost };
+  sites.cleanTarget(target);                                    // fails before anything changes
+  await control("DELETE", `/tunnels/${t.port}`);
+  try {
+    return await sites.create({ type: "port", name: String(b.name || t.name || t.sub || `Port ${t.port}`).slice(0, 60), sub: t.sub || undefined, tunnelPort: t.sub ? undefined : t.port,
+                                access, password: keep ? undefined : b.password, lockFrom: keep ? t.port : undefined, target });
+  } catch (e) {
+    await control("POST", "/tunnels", { port: t.port, targetHost: t.targetHost, targetPort: t.targetPort, scheme: t.scheme, sub: t.sub || undefined, name: t.name || "",
+                                        preserveHost: !!t.preserveHost, access: t.access, ...(t.access === "password" && t.locked ? { lockFrom: t.port } : {}) }).catch(() => {});
+    throw e;
+  }
+}
+// ...and back: a plain tunnel in the Tunnels tab again, same address, same password
+async function returnPort(id) {
+  const s = store.site(id);
+  if (!s || s.type !== "port") { const e = new Error("Only a port site can go back to the Tunnels tab."); e.status = 400; throw e; }
+  if (s.target.machine !== "this") { const e = new Error("A port of another machine stays here: the Tunnels tab can't reach other machines."); e.status = 400; throw e; }
+  const t = sites.tunnelOf(s);
+  const sub = t?.sub || null;
+  // its key: its own number when it has no name (that number is its address), else the port it points at
+  const key = sub ? s.target.port : s.port;
+  if (sub && ctx.tunnels.list().some((x) => x.port === key && x.port !== s.port)) { const e = new Error(`Burrow already has a tunnel on port ${key}.`); e.status = 409; throw e; }
+  const spec = { port: key, targetHost: s.target.host, targetPort: s.target.port, scheme: s.target.scheme, sub: sub || undefined, name: s.name,
+                 preserveHost: !!s.target.keepHost, access: t?.access || s.access, ...(t?.locked && t.access === "password" ? { lockFrom: s.port } : {}) };
+  await sites.remove(id);
+  await control("POST", "/tunnels", spec);
+  return { returned: key };
 }
 
 export async function stop() {
@@ -168,6 +209,8 @@ export async function handle({ method, path, json }) {
   // move an old site tunnel in: {port, access, password?, name?}
   if (path === "/adopt" && method === "POST") { const b = (await json()) || {}; const out = await adopt(b.port, b); return ok({ site: out.site }); }
   if (path === "/sites" && method === "GET") return ok({ sites: store.sites().map((s) => sites.summary(s)) });
+  if (path === "/adopt-port" && method === "POST") { const b = (await json()) || {}; const out = await adoptPort(b.port, b); return ok({ site: out.site }); }
+  if (path === "/return-port" && method === "POST") return ok(await returnPort(String(((await json()) || {}).site || "")));
   if (path === "/sync-all" && method === "POST") { for (const s of store.sites()) if (s.type === "git") await sites.syncOne(s.id); return ok({ ok: true }); }
   return null;
 }

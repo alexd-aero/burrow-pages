@@ -9,6 +9,11 @@ An addon for <a href="https://github.com/alexd-aero/aegis-burrow">Aegis × Burro
 
 Pick a repository, a folder on your computer, or the address of a site that already exists. It answers at `https://NAME.your-domain` over HTTPS, behind your Aegis login, a password of its own, or open to everyone (still behind your gate's shield). Every push goes live by itself, any earlier deploy is one click from live again, and you see who visits without a cookie or a script in your pages.
 
+## What's new in 2.2
+
+- **A port on a machine**: an app that listens on a port (a dashboard, a dev server, a game panel) on its own address, from this machine or from any of your Machines (Aegis × Burrow 2.31 reaches their port over the link the Machines tab already has, and keeps it up). WebSockets pass through, a self-signed https app is fine, the visitor's address is passed on, and it gets everything a site gets: stats, health checks, maintenance mode, who can open it.
+- **Port tunnels from the Tunnels tab can move in**: same address (its name, or its number), same password (Burrow hands the hash over), editable here from then on. *Settings → Move back to Tunnels* returns one, just as it was.
+
 ## What's new in 2.1
 
 - **As many accounts as you like**, GitHub and GitLab, each signed in on its own (or named by its username for its public repositories). When a provider stops accepting one, that account says *Sign in again*, and your sites from it say why they stopped updating.

@@ -2,8 +2,8 @@
   "spec": 1,
   "id": "burrow-pages",
   "name": "Burrow Pages",
-  "version": "2.1.0",
-  "description": "Your static websites on your own addresses: from GitHub or GitLab (any number of accounts, built in a container when they need it), from any Git repository, from an upload, a repository's own Pages site, or a site that lives elsewhere. Every push deployed, any deploy one click from live again, visitor numbers without cookies, health checks, and your login, a password or public for each.",
+  "version": "2.2.0",
+  "description": "Your static websites on your own addresses: from GitHub or GitLab (any number of accounts, built in a container when they need it), from any Git repository, from an upload, a repository's own Pages site, a site that lives elsewhere, or a port of an app on this machine or any of your Machines. Every push deployed, any deploy one click from live again, visitor numbers without cookies, health checks, and your login, a password or public for each.",
   "author": "Alexd Aero",
   "license": "MIT",
   "homepage": "https://github.com/alexd-aero/burrow-pages",
@@ -71,13 +71,13 @@
     "badge": "NEW",
     "urgency": "recommended",
     "title": "{name} {version}",
-    "tagline": "As many GitHub and GitLab accounts as you like, any Git repository by address, and a repository's own Pages site on your address.",
+    "tagline": "Ports: an app on this machine or on any of your Machines, as a site, and your Tunnels-tab port tunnels can move in.",
     "highlights": [
-      "Any number of GitHub and GitLab accounts, each with its own sign-in",
-      "An expired sign-in says so on that account (Sign in again), never as a sign-out",
-      "Any public Git repository by its https address: Codeberg, Bitbucket, Gitea…",
-      "A repository's own GitHub or GitLab Pages site, served on your address with a cache",
-      "Rebuilt in 2.0: its own app, builds, uploads, rollbacks, analytics, public sites"
+      "A port on a machine: an app on this machine or on one of your Machines, on its own address",
+      "WebSockets, self-signed https and the visitor's address passed on, like a real reverse proxy",
+      "Port tunnels from the Tunnels tab move in at the same address with the same password",
+      "…and move back to the Tunnels tab any time",
+      "Other machines need Aegis × Burrow 2.31 (it forwards their port over the Machines link)"
     ],
     "button": "Update to {version}",
     "notes": "https://github.com/alexd-aero/burrow-pages#whats-new-in-20"

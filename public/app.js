@@ -52,8 +52,10 @@ const I = {
   moon: svg('<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>'),
   shield: svg('<path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/>'),
   url: svg('<circle cx="6" cy="6" r="2.2"/><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="12" r="2.2"/><path d="M6 8.2v7.6M8 6.8c5 .5 8 2 8.5 3.4M8 17.2c5-.5 8-2 8.5-3.4"/>'),
+  plug: svg('<path d="M9 2v5M15 2v5M6 7h12v4a6 6 0 0 1-12 0z"/><path d="M12 17v5"/>'),
   eye: svg('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'),
 };
+const served = (s) => s.type === "proxy" || s.type === "port";      // no deploys: it answers from elsewhere
 const PROV = { github: "GitHub", gitlab: "GitLab", url: "Git" };
 const LANG = { HTML: "#e34c26", CSS: "#563d7c", SCSS: "#c6538c", JavaScript: "#f1e05a", TypeScript: "#3178c6", Vue: "#41b883", Svelte: "#ff3e00", Astro: "#ff5a03",
                Ruby: "#701516", Python: "#3572A5", Go: "#00ADD8", Rust: "#dea584", Java: "#b07219", Shell: "#89e051", MDX: "#fcb32c", Markdown: "#083fa1", Dart: "#00B4AB" };
@@ -141,7 +143,7 @@ function status(s) {
   if (s.paused) return `<span class="badge paused"><i></i>Paused</span>`;
   if (!s.tunnel) return `<span class="badge fail"><i></i>No tunnel</span>`;
   if (s.maintenance === true || s.maintenance?.on) return `<span class="badge maint"><i></i>Maintenance</span>`;
-  if (s.type !== "proxy" && !s.current) return s.last?.state === "failed" ? `<span class="badge fail"><i></i>Failed</span>` : `<span class="badge"><i></i>No deploy yet</span>`;
+  if (!served(s) && !s.current) return s.last?.state === "failed" ? `<span class="badge fail"><i></i>Failed</span>` : `<span class="badge"><i></i>No deploy yet</span>`;
   if (s.health && !s.health.ok) return `<span class="badge down"><i></i>Down</span>`;
   if (s.last?.state === "failed") return `<span class="badge fail" title="The last deploy failed; the one before it is still live"><i></i>Live · last deploy failed</span>`;
   return `<span class="badge live"><i></i>Live</span>`;
@@ -150,6 +152,7 @@ const accessChip = (a) => a === "public" ? `<span class="chip pub">${I.globe}Pub
 function sourceLine(s) {
   if (s.type === "git") return `<span class="site-src">${I[s.source.provider]}<span class="ell">${h(s.source.provider === "url" ? s.source.repo.replace(/^https:\/\//, "") : s.source.repo)}</span><span class="faint">·</span>${I.branch}<span class="ell">${h(s.source.branch)}</span>${s.source.mode === "build" ? `<span class="chip">${I.box}build</span>` : ""}</span>`;
   if (s.type === "proxy" && s.source.pages) return `<span class="site-src">${I[s.source.pages.provider]}<span class="ell">${h(s.source.pages.repo)}</span><span class="chip">${I.globe}${PROV[s.source.pages.provider]} Pages</span></span>`;
+  if (s.type === "port") return `<span class="site-src">${I.plug}<span class="ell">${h(s.source.label || "")}</span><span class="faint">${h(s.source.target?.scheme || "")}</span></span>`;
   if (s.type === "proxy") return `<span class="site-src">${I.globe}<span class="ell">${h(String(s.source.upstream || "").replace(/^https?:\/\//, ""))}</span></span>`;
   return `<span class="site-src">${I.upload}<span>Uploaded files</span></span>`;
 }
@@ -261,10 +264,11 @@ function renderSites() {
   const st = S.state;
   const list = Object.values(st.sites);
   const t = list.reduce((a, s) => ({ v: a.v + (s.today?.v || 0), p: a.p + (s.today?.p || 0), r: a.r + (s.today?.r || 0), b: a.b + (s.today?.b || 0) }), { v: 0, p: 0, r: 0, b: 0 });
-  const live = list.filter((s) => s.tunnel && !s.paused && (s.type === "proxy" || s.current) && !(s.health && !s.health.ok)).length;
+  const live = list.filter((s) => s.tunnel && !s.paused && (served(s) || s.current) && !(s.health && !s.health.ok)).length;
   main.innerHTML = `
     <div class="page-h"><div class="grow"><h1>Sites</h1><p>Static websites on your own addresses${st.zone ? ` at <span class="mono">*.${h(zoneSuffix())}</span>` : ""}, behind your login, a password, or open to everyone.</p></div>
       ${list.length ? `<a class="btn primary" href="#/new">${I.plus}New site</a>` : ""}</div>
+    ${st.ports?.length ? `<div class="notice">${I.plug}<div class="grow">${st.ports.length === 1 ? "A port tunnel" : `${st.ports.length} port tunnels`} from the Tunnels tab can move in here (same address, same password) for stats, health checks, maintenance mode and editing here: <b>${st.ports.slice(0, 4).map((x) => h(x.sub || x.port)).join(", ")}${st.ports.length > 4 ? "…" : ""}</b></div><button class="btn sm" data-act="ports">Move in</button></div>` : ""}
     ${st.legacy?.length ? `<div class="notice warn">${I.info}<div class="grow">${st.legacy.length === 1 ? "One site" : `${st.legacy.length} sites`} from the old Burrow Pages ${st.legacy.length === 1 ? "is" : "are"} still a plain Burrow tunnel: <b>${st.legacy.map((x) => h(x.sub || x.name)).join(", ")}</b>. Move ${st.legacy.length === 1 ? "it" : "them"} in for caching, stats, health checks and public access.</div><button class="btn sm" data-act="legacy">Move in</button></div>` : ""}
     ${list.length ? `<div class="stats">
       <div class="card stat"><b>${live}<span class="faint" style="font-size:16px">/${list.length}</span></b><span>sites live</span></div>
@@ -295,14 +299,15 @@ function siteCard(s) {
     <div class="site-foot"><div class="commit grow">
       <div class="row" style="gap:6px;margin-bottom:4px">${accessChip(s.access)}${s.today?.v ? `<span class="chip">${I.user}${num(s.today.v)} today</span>` : ""}</div>
       ${c ? `<div class="ell">${c.sha ? `<span class="mono">${h(c.sha.slice(0, 7))}</span> ` : ""}<b>${h(c.message || "Deployed")}</b></div><div>${ago(c.at)}</div>`
-          : s.type === "proxy" ? `<div>${s.health ? `${s.health.ok ? "Answering" : "Not answering"} · checked ${ago(s.health.at)}` : "Checking…"}</div>` : `<div>${s.last?.state === "failed" ? `<span class="bad">${h(s.last.error || "Failed")}</span>` : "Nothing deployed yet"}</div>`}
+          : served(s) ? `<div>${s.health ? `${s.health.ok ? "Answering" : "Not answering"} · checked ${ago(s.health.at)}` : "Checking…"}</div>` : `<div>${s.last?.state === "failed" ? `<span class="bad">${h(s.last.error || "Failed")}</span>` : "Nothing deployed yet"}</div>`}
     </div>${spark(s.spark || [])}</div>
   </div>`;
 }
 const sourceCards = () => `
   <button class="source" data-go="#/new/git"><div class="ic">${I.github}</div><b>From a repository</b><span>GitHub or GitLab, private ones too. Every push goes live; sites that need building are built in a container.</span></button>
   <button class="source" data-go="#/new/upload"><div class="ic">${I.upload}</div><b>Upload files</b><span>Drop a folder, a .zip or a .tar.gz. Upload a new version whenever you like.</span></button>
-  <button class="source" data-go="#/new/proxy"><div class="ic">${I.globe}</div><b>A site elsewhere</b><span>GitLab or GitHub Pages, or any website, answering on your address with caching and stats.</span></button>`;
+  <button class="source" data-go="#/new/proxy"><div class="ic">${I.globe}</div><b>A site elsewhere</b><span>GitLab or GitHub Pages, or any website, answering on your address with caching and stats.</span></button>
+  <button class="source" data-go="#/new/port"><div class="ic">${I.plug}</div><b>A port on a machine</b><span>An app running on this machine, or on one of your Machines, on its own address. WebSockets included.</span></button>`;
 
 /* ================================================================ new site */
 function renderNew(r) {
@@ -375,6 +380,7 @@ function readAddress(w) {
 function paintWizard() {
   const w = S.wiz;
   if (w.kind === "git") return paintGitWizard();
+  if (w.kind === "port") return paintPortWizard();
   if (w.kind === "proxy") {
     main.innerHTML = wizShell("A site elsewhere", "A website that lives somewhere else, answering on your address. Caching keeps it up when the original has a bad minute.", 1, 0, `
       <div class="card pad">
@@ -402,6 +408,40 @@ function paintWizard() {
       <div class="modal-f"><a class="btn ghost" href="#/new">Back</a><button class="btn primary" data-act="wiz-upload-create">Next: the files</button></div></div>` : `
     <div class="card pad">${dropZone()}<div id="upProgress"></div></div>`);
   if (w.step === 0) wireAddress(w); else wireDrop($(".drop"), w.siteId, true);
+}
+
+/* ---------------- a port on a machine ---------------- */
+const machineOptions = (sel) => {
+  const M = S.state.machines || { list: [] };
+  return `<option value="this" ${sel === "this" ? "selected" : ""}>This machine</option>` + (M.available ? M.list.map((m) => `<option value="${h(m.id)}" ${sel === m.id ? "selected" : ""}>${h(m.name)} (${h(m.address)})${m.up ? "" : " · offline"}</option>`).join("") : "");
+};
+const targetFields = (t = {}, pre = "w") => `
+  <div class="grid3">
+    <label class="f"><span>Machine</span><select class="inp" id="${pre}Machine" data-k="target.machine">${machineOptions(t.machine || "this")}</select></label>
+    <label class="f" style="margin-top:0"><span>Port</span><input class="inp mono" id="${pre}Port" data-k="target.port" type="number" min="1" max="65535" value="${h(t.port || "")}" placeholder="3000"></label>
+    <label class="f" style="margin-top:0"><span>It speaks</span><select class="inp" id="${pre}Scheme" data-k="target.scheme"><option value="http" ${t.scheme !== "https" ? "selected" : ""}>http</option><option value="https" ${t.scheme === "https" ? "selected" : ""}>https</option></select></label>
+  </div>
+  <div id="${pre}HostRow" class="${(t.machine || "this") === "this" ? "" : "hidden"}"><label class="f"><span>Host <span class="faint">(on this machine's network)</span></span><input class="inp mono" id="${pre}Host" data-k="target.host" value="${h(t.host || "127.0.0.1")}" spellcheck="false"></label></div>
+  <div class="help">${(S.state.machines?.available) ? `Other machines come from the Machines tab; Aegis reaches their port over the link it already has to them.${S.state.machines.enabled ? "" : " (Machine management is off: Settings → Modules.)"}` : "Other machines need Aegis × Burrow 2.31 or newer."}</div>
+  <div class="toggle-row" style="margin-top:8px"><label class="switch"><input type="checkbox" id="${pre}Fwd" data-k="target.forwardIp" ${t.forwardIp !== false ? "checked" : ""}><i></i></label><div><b>Tell the app who's visiting</b><span>X-Forwarded-For, -Proto and -Host, like most reverse proxies.</span></div></div>
+  <div class="toggle-row"><label class="switch"><input type="checkbox" id="${pre}KeepHost" data-k="target.keepHost" ${t.keepHost ? "checked" : ""}><i></i></label><div><b>Send the public address as Host</b><span>For apps that build links from it, or only answer their own name.</span></div></div>
+  <div class="toggle-row"><label class="switch"><input type="checkbox" id="${pre}Insecure" data-k="target.insecure" ${t.insecure !== false ? "checked" : ""}><i></i></label><div><b>Accept its own certificate</b><span>Over https, a certificate the app made itself (most local apps) is fine.</span></div></div>`;
+function readTarget(pre = "w") {
+  const port = Number($(`#${pre}Port`).value);
+  if (!(port >= 1 && port <= 65535)) throw new Error("Pick a port from 1 to 65535.");
+  const machine = $(`#${pre}Machine`).value;
+  return { machine, host: machine === "this" ? $(`#${pre}Host`).value.trim() || "127.0.0.1" : undefined, port, scheme: $(`#${pre}Scheme`).value,
+           forwardIp: $(`#${pre}Fwd`).checked, keepHost: $(`#${pre}KeepHost`).checked, insecure: $(`#${pre}Insecure`).checked };
+}
+function paintPortWizard() {
+  const w = S.wiz;
+  main.innerHTML = wizShell("A port on a machine", "An app that listens on a port, on its own address: a dashboard, a dev server, a game panel, anything that speaks HTTP.", 1, 0, `
+    <div class="card pad">${targetFields(w.target || {})}
+      <div class="divider"></div>${addressFields(w)}
+      <div class="modal-f"><a class="btn ghost" href="#/new">Back</a><button class="btn primary" data-act="wiz-port">${I.rocket}Create the site</button></div></div>`);
+  wireAddress(w);
+  $("#wMachine").onchange = (e) => $("#wHostRow").classList.toggle("hidden", e.target.value !== "this");
+  $("#wPort").oninput = (e) => { if (!w.subTouched && !$("#wName").value && e.target.value) { $("#wSub").value = `app-${e.target.value}`; $("#wSub").dispatchEvent(new Event("input")); w.subTouched = false; } };
 }
 
 /* ---------------- repository wizard ---------------- */
@@ -637,7 +677,7 @@ async function renderSite(r) {
   const tab = r.tab || "overview";
   main.innerHTML = `<div class="crumbs"><a href="#/">Sites</a>${I.chev}<span>${h(s.name)}</span></div>
     <div id="siteHead"></div>
-    <nav class="tabs">${[["overview", "Overview"], ...(s.type === "proxy" ? [] : [["deploys", "Deploys"]]), ["analytics", "Analytics"], ...(s.type === "proxy" ? [] : [["files", "Files"]]), ["settings", "Settings"]]
+    <nav class="tabs">${[["overview", "Overview"], ...(served(s) ? [] : [["deploys", "Deploys"]]), ["analytics", "Analytics"], ...(served(s) ? [] : [["files", "Files"]]), ["settings", "Settings"]]
       .map(([k, t]) => `<a href="#/site/${s.id}/${k}" class="${tab === k ? "on" : ""}">${t}</a>`).join("")}</nav>
     <div id="tab"></div>`;
   paintSiteHead(); paintTab();
@@ -676,7 +716,7 @@ function tabOverview(s, el) {
   const up = checks.length ? Math.round((checks.filter(Boolean).length / checks.length) * 1000) / 10 : null;
   const today = S.state.sites[s.id]?.today || {};
   el.innerHTML = `${running.map((j) => jobBox(j)).join("")}<div class="cols"><div class="stack">
-    ${s.type !== "proxy" ? `<div class="card pad"><div class="row" style="margin-bottom:14px"><h3 class="grow">Live deploy</h3>${c ? `<a class="btn sm ghost" href="#/site/${s.id}/deploys">All deploys</a>` : ""}</div>
+    ${!served(s) ? `<div class="card pad"><div class="row" style="margin-bottom:14px"><h3 class="grow">Live deploy</h3>${c ? `<a class="btn sm ghost" href="#/site/${s.id}/deploys">All deploys</a>` : ""}</div>
       ${c ? `<dl class="kv">
         ${c.commit?.sha ? `<dt>Commit</dt><dd>${c.commit.url ? `<a class="mono" href="${h(c.commit.url)}" target="_blank" rel="noopener">${h(c.commit.sha.slice(0, 7))}</a>` : `<span class="mono">${h(c.commit.sha.slice(0, 7))}</span>`} ${h(c.commit.message || "")}</dd>` : `<dt>From</dt><dd>${h(c.note || "an upload")}</dd>`}
         ${c.commit?.author ? `<dt>By</dt><dd>${h(c.commit.author)}</dd>` : ""}
@@ -690,6 +730,11 @@ function tabOverview(s, el) {
         <dt>Build</dt><dd>${s.source.mode === "build" ? `<span class="mono">${h(s.source.build?.command || "")}</span> → <span class="mono">${h(s.source.build?.output || "")}/</span>` : "None: served as it is"}</dd>
         <dt>Pushes</dt><dd>${s.source.autoDeploy !== false ? `Deployed as they come${s.sync?.checked ? ` <span class="faint">· checked ${ago(s.sync.checked)}</span>` : ""}` : "Deployed when you press Deploy"}${s.sync?.error ? `<div class="bad small">${h(s.sync.error)}</div>` : ""}${s.sync?.pending && s.sync.pending !== s.current?.sha ? `<div class="warnc small">New commit ${h(s.sync.pending.slice(0, 7))} waiting</div>` : ""}</dd>
       </dl><div class="row" style="margin-top:14px"><button class="btn sm" data-act="sync">${I.sync}Look for new commits</button></div></div>` : ""}
+    ${s.type === "port" ? `<div class="card pad"><h3>Points at</h3><dl class="kv" style="margin-top:12px">
+        <dt>Machine</dt><dd>${s.target.machine === "this" ? "This machine" : h((S.state.machines?.list || []).find((m) => m.id === s.target.machine)?.name || s.target.machine)}</dd>
+        <dt>Address</dt><dd class="mono">${h(s.target.scheme)}://${h(s.target.machine === "this" ? s.target.host : "127.0.0.1")}:${h(s.target.port)}</dd>
+        ${s.forward ? `<dt>Link</dt><dd>${s.forward.state === "up" ? `<span class="ok">Up</span> since ${ago(s.forward.since)}` : `<span class="warnc">${h(s.forward.state)}</span>${s.forward.error ? ` · ${h(s.forward.error)}` : ""}`}</dd>` : ""}
+        <dt>Passes on</dt><dd>${[s.target.forwardIp !== false && "visitor's address", s.target.keepHost && "public Host", s.target.scheme === "https" && s.target.insecure !== false && "its own certificate accepted"].filter(Boolean).join(" · ") || "nothing extra"}</dd></dl></div>` : ""}
     ${s.type === "proxy" ? `<div class="card pad"><h3>Original</h3><dl class="kv" style="margin-top:12px">
         <dt>Address</dt><dd><a class="mono" href="${h(s.proxy.upstream)}" target="_blank" rel="noopener">${h(s.proxy.upstream)}</a></dd>
         ${s.proxy.pages ? `<dt>Pages of</dt><dd>${I[s.proxy.pages.provider]} <a href="https://${s.proxy.pages.provider}.com/${h(s.proxy.pages.repo)}" target="_blank" rel="noopener">${h(s.proxy.pages.repo)}</a></dd>` : ""}
@@ -822,6 +867,7 @@ function tabSettings(s, el) {
       <label class="f"><span>Look for new commits</span><select class="inp" data-k="source.syncEvery" style="max-width:280px">${[["", `As in Settings (${S.state.settings.syncEvery ? `every ${S.state.settings.syncEvery} min` : "off"})`], ["1", "Every minute"], ["5", "Every 5 minutes"], ["15", "Every 15 minutes"], ["60", "Every hour"], ["0", "Never by itself"]].map(([v, t]) => `<option value="${v}" ${String(s.source.syncEvery ?? "") === v ? "selected" : ""}>${t}</option>`).join("")}</select></label>
       ${s.source.mode === "build" ? `<div class="row" style="margin-top:14px"><button class="btn sm" data-act="deploy-clean">${I.sync}Deploy with a clean build cache</button></div>` : ""}
     </div></div>` : ""}
+    ${s.type === "port" ? `<div class="set"><div><h3>Points at</h3><p class="d">The port it shows. A change takes effect at once.</p></div><div>${targetFields(s.target, "t")}</div></div>` : ""}
     ${s.type === "proxy" ? `<div class="set"><div><h3>The original</h3><p class="d">Where this site really is.</p></div><div>
       <label class="f"><span>Address</span><input class="inp mono" data-k="proxy.upstream" value="${h(s.proxy.upstream)}" spellcheck="false"></label>
       <div class="grid2"><label class="f"><span>Cache pages for</span><select class="inp" data-k="proxy.cacheSeconds">${[[0, "Off"], [30, "30 seconds"], [60, "A minute"], [300, "5 minutes"], [3600, "An hour"], [86400, "A day"]].map(([v, t]) => `<option value="${v}" ${Number(s.proxy.cacheSeconds) === v ? "selected" : ""}>${t}</option>`).join("")}</select></label>
@@ -830,20 +876,20 @@ function tabSettings(s, el) {
       <div class="toggle-row"><label class="switch"><input type="checkbox" data-k="proxy.forwardIp" ${s.proxy.forwardIp ? "checked" : ""}><i></i></label><div><b>Tell the original who's visiting</b><span>Sends the visitor's address on (X-Forwarded-For). Off keeps it private.</span></div></div>
     </div></div>` : ""}
     <div class="set"><div><h3>Serving</h3><p class="d">How requests turn into files.</p></div><div>
-      ${s.type !== "proxy" ? `
+      ${!served(s) ? `
       <div class="toggle-row"><label class="switch"><input type="checkbox" data-k="serving.spa" ${sv.spa ? "checked" : ""}><i></i></label><div><b>Single-page app</b><span>Unknown paths without a file extension get /index.html.</span></div></div>
       <div class="toggle-row"><label class="switch"><input type="checkbox" data-k="serving.cleanUrls" ${sv.cleanUrls !== false ? "checked" : ""}><i></i></label><div><b>Clean URLs</b><span>/about serves about.html.</span></div></div>
       <div class="toggle-row"><label class="switch"><input type="checkbox" data-k="serving.trailingSlash" ${sv.trailingSlash !== false ? "checked" : ""}><i></i></label><div><b>Folders end in /</b><span>/docs redirects to /docs/ (so relative links inside work).</span></div></div>
       <div class="toggle-row"><label class="switch"><input type="checkbox" data-k="serving.compress" ${sv.compress !== false ? "checked" : ""}><i></i></label><div><b>Compress</b><span>Brotli or gzip for text, scripts and styles.</span></div></div>` : ""}
       <div class="toggle-row"><label class="switch"><input type="checkbox" data-k="serving.noindex" ${sv.noindex ? "checked" : ""}><i></i></label><div><b>Keep it out of search engines</b><span>Adds X-Robots-Tag: noindex.</span></div></div>
-      ${s.type !== "proxy" ? `<div class="grid3" style="margin-top:12px">
+      ${!served(s) ? `<div class="grid3" style="margin-top:12px">
         <label class="f"><span>Not-found page</span><input class="inp mono" data-k="serving.notFound" value="${h(sv.notFound || "")}" placeholder="/404.html"></label>
         <label class="f" style="margin-top:0"><span>In other sites' frames</span><select class="inp" data-k="serving.frame">${[["sameorigin", "Only its own"], ["deny", "Never"], ["allow", "Anywhere"]].map(([v, t]) => `<option value="${v}" ${sv.frame === v ? "selected" : ""}>${t}</option>`).join("")}</select></label>
         <label class="f" style="margin-top:0"><span>Browser cache</span><select class="inp" data-k="serving.maxAge">${[[0, "Always check"], [300, "5 minutes"], [3600, "An hour"], [86400, "A day"], [604800, "A week"]].map(([v, t]) => `<option value="${v}" ${Number(sv.maxAge) === v ? "selected" : ""}>${t}</option>`).join("")}</select></label></div>
       <div class="help">HTML is always checked; build files with a hash in their name are kept for a year.</div>
       <label class="f"><span>Content-Security-Policy <span class="faint">(optional)</span></span><input class="inp mono" data-k="serving.csp" value="${h(sv.csp || "")}" placeholder="default-src 'self'" spellcheck="false"></label>` : ""}
     </div></div>
-    ${s.type !== "proxy" ? `<div class="set"><div><h3>Redirects</h3><p class="d">One per line: <span class="mono">from to [status]</span>. Before the site's own _redirects file.</p></div><div>
+    ${!served(s) ? `<div class="set"><div><h3>Redirects</h3><p class="d">One per line: <span class="mono">from to [status]</span>. Before the site's own _redirects file.</p></div><div>
       <textarea class="inp" data-k="serving.redirects" rows="6" spellcheck="false" placeholder="/old-page    /new-page    301&#10;/blog/*     /posts/:splat 302&#10;/app/*      /app/index.html 200">${h(sv.redirects || "")}</textarea>
       <div class="help" id="rdHelp">${s.rules?.errors?.filter((e) => e.startsWith("Redirects")).map(h).join("<br>") || "200 serves another file at the same address; ! applies even when the file exists."}</div></div></div>
     <div class="set"><div><h3>Headers</h3><p class="d">A path, then its headers indented under it. After the site's own _headers file.</p></div><div>
@@ -856,7 +902,7 @@ function tabSettings(s, el) {
   </div>
   <div id="saveBar"></div>
   <div class="card danger-zone" style="margin-top:22px"><div class="set"><div><h3 class="bad">Remove the site</h3><p class="d">Its address stops answering, and its deploys, files and numbers are deleted. The repository isn't touched.</p></div>
-    <div class="row" style="align-items:flex-start"><button class="btn danger" data-act="remove">${I.trash}Remove ${h(s.name)}</button></div></div></div>`;
+    <div class="row wrap" style="align-items:flex-start">${s.type === "port" && s.target.machine === "this" ? `<button class="btn" data-act="return-port">${I.undo}Move back to Tunnels</button>` : ""}<button class="btn danger" data-act="remove">${I.trash}Remove ${h(s.name)}</button></div></div></div>`;
   S.dirty = { site: s.id, patch: {} };
   const form = $("#setForm");
   const markDirty = () => {
@@ -867,6 +913,7 @@ function tabSettings(s, el) {
     const k = e.target.dataset.k; if (!k) return;
     S.dirty.patch[k] = e.target.type === "checkbox" ? e.target.checked : e.target.value;
     if (k === "source.mode") $("#bWrap")?.classList.toggle("hidden", !e.target.checked);
+    if (k === "target.machine") $("#tHostRow")?.classList.toggle("hidden", e.target.value !== "this");
     if (k === "sub") { e.target.value = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""); S.dirty.patch.sub = e.target.value; checkSubLater(e.target.value, s.sub); }
     if (k === "serving.redirects" || k === "serving.headers") checkRulesLater();
     markDirty();
@@ -906,7 +953,7 @@ async function saveSettings(btn) {
     if (!b) { body[a] = v; continue; }
     body[a] ||= {};
     if (a === "source" && b === "mode") body.source.mode = v ? "build" : "static";
-    else if (["maxAge", "cacheSeconds", "timeout"].includes(b)) body[a][b] = Number(v);
+    else if (["maxAge", "cacheSeconds", "timeout", "port"].includes(b)) body[a][b] = Number(v);
     else if (b === "syncEvery") body[a][b] = v === "" ? null : Number(v);
     else body[a][b] = v;
   }
@@ -1040,6 +1087,14 @@ async function renderSettings() {
 }
 
 /* ================================================================ legacy tunnels */
+function portsModal() {
+  const P = S.state.ports || [];
+  const m = modal(`<div class="modal-h"><div class="grow"><h2>Move port tunnels in</h2><p>Each becomes a site here at the same address, with its password. It can go back to the Tunnels tab any time (Settings → Move back).</p></div><button class="btn icon ghost" data-x>${I.x}</button></div>
+    <div class="list card">${P.map((x) => `<div class="act" style="grid-template-columns:1fr auto"><div style="min-width:0"><b>${h(x.name || x.sub || `Port ${x.port}`)}</b><div class="faint small ell">${h(x.host || x.url || "")} → ${h(x.target)}</div></div>
+      <div class="row"><select class="inp" data-pacc="${x.port}" style="height:32px;width:170px">${x.access === "password" && x.locked ? `<option value="keep" selected>Its password (kept)</option>` : ""}<option value="login" ${x.access === "login" ? "selected" : ""}>Your login</option><option value="public" ${x.access === "public" ? "selected" : ""}>Everyone</option><option value="password">A new password</option></select>
+      <button class="btn sm primary" data-act="adopt-port" data-port="${x.port}">Move in</button></div></div>`).join("")}</div>`, { wide: true });
+  $("[data-x]", m).onclick = closeModal;
+}
 function legacyModal() {
   const L = S.state.legacy;
   const m = modal(`<div class="modal-h"><div class="grow"><h2>Move into Burrow Pages</h2><p>These answer through Burrow's old Pages proxy. Moved in, each becomes a site here with caching, numbers, health checks, and can be public. The address stays the same.</p></div><button class="btn icon ghost" data-x>${I.x}</button></div>
@@ -1064,6 +1119,17 @@ document.addEventListener("click", async (e) => {
   try {
     if (act === "toggle-log") { const box = el.closest(".job"); const log = $(".log", box); log.classList.toggle("hidden"); el.textContent = log.classList.contains("hidden") ? "Show log" : "Hide log"; return; }
     if (act === "legacy") return legacyModal();
+    if (act === "ports") return portsModal();
+    if (act === "adopt-port") {
+      const port = el.dataset.port, access = $(`[data-pacc="${port}"]`).value;
+      let password;
+      if (access === "password") { password = prompt("Its new password:"); if (!password) return; }
+      return busy(el, async () => { const out = await api(`/ports/${port}/adopt`, { method: "POST", body: { access, password } }); closeModal(); toast("Moved in"); await loadState(); location.hash = `#/site/${out.site.id}`; render(); });
+    }
+    if (act === "return-port") {
+      if (!(await confirmBox({ title: `Move ${s.name} back to Tunnels?`, text: "It becomes a plain Burrow tunnel again, at the same address with the same password. Its numbers here are deleted.", ok: "Move back" }))) return;
+      return busy(el, async () => { await api(`/sites/${s.id}/return`, { method: "POST", body: {} }); toast("Back in the Tunnels tab"); delete S.sites[s.id]; await loadState(); location.hash = "#/"; });
+    }
     if (act === "adopt") {
       const port = el.dataset.port, access = $(`[data-acc="${port}"]`).value;
       let password;
@@ -1116,6 +1182,13 @@ document.addEventListener("click", async (e) => {
       const upstream = $("#wUp").value.trim(); if (!upstream) throw new Error("Enter the address of the site.");
       return busy(el, async () => {
         const out = await api("/sites", { method: "POST", body: { type: "proxy", ...addr, proxy: { upstream, cacheSeconds: $("#wCache").checked ? 60 : 0, rewriteLinks: $("#wRewrite").checked } } });
+        S.wiz = null; toast(`${addr.name} is live`); await loadState(); location.hash = `#/site/${out.site.id}`;
+      });
+    }
+    if (act === "wiz-port") {
+      const target = readTarget("w"), addr = readAddress(w);
+      return busy(el, async () => {
+        const out = await api("/sites", { method: "POST", body: { type: "port", ...addr, target } });
         S.wiz = null; toast(`${addr.name} is live`); await loadState(); location.hash = `#/site/${out.site.id}`;
       });
     }
