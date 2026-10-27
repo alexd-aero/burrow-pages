@@ -858,6 +858,11 @@ function tabSettings(s, el) {
     <div class="set"><div><h3>Who can open it</h3><p class="d">Public sites are still behind your gate's shield: new visitors are checked before they get in.</p></div><div>
       <div class="seg full" id="accSeg">${[["login", I.lock, "Your login"], ["password", I.key, "A password"], ["public", I.globe, "Everyone"]].map(([v, ic, t]) => `<button type="button" data-v="${v}" class="${s.access === v ? "on" : ""}">${ic}${t}</button>`).join("")}</div>
       <div id="pwRow" class="${s.access === "password" ? "" : "hidden"}" style="margin-top:12px"><input class="inp" type="password" data-k="password" autocomplete="new-password" placeholder="${s.tunnelInfo?.locked ? "A new password (leave empty to keep the current one)" : "The site's password"}"></div></div></div>
+    <div class="set"><div><h3>Blocked file types</h3><p class="d">They don't get through its tunnel: downloads and images to visitors, uploads from them.</p></div><div>
+      ${s.tunnelInfo && "blockTypes" in s.tunnelInfo ? `<div class="grid2"><label class="f"><span>Extensions or types</span><input class="inp mono" data-k="block.list" value="${h((s.tunnelInfo.blockTypes?.list || []).join(", "))}" placeholder="gif, mp4, video/*" spellcheck="false" autocapitalize="none"></label>
+        <label class="f" style="margin-top:0"><span>Which way</span><select class="inp" data-k="block.dir">${[["both", "Both ways"], ["out", "To visitors"], ["in", "From visitors"]].map(([v, t]) => `<option value="${v}" ${(s.tunnelInfo.blockTypes?.dir || "both") === v ? "selected" : ""}>${t}</option>`).join("")}</select></label></div>
+      <div class="help">Empty lets everything through. "gif" also stops image/gif, whatever the address says.</div>`
+      : `<div class="help">${s.tunnelInfo ? "Needs Aegis × Burrow 2.32 or newer." : "The site has no tunnel yet."}</div>`}</div></div>
     ${s.type === "git" ? `<div class="set"><div><h3>Source</h3><p class="d">${I[s.source.provider]} ${h(s.source.repo)}. A change here deploys again.</p></div><div>
       <div class="grid2"><label class="f"><span>Branch</span><input class="inp mono" data-k="source.branch" value="${h(s.source.branch)}" spellcheck="false"></label>
         <label class="f" style="margin-top:0"><span>Folder</span><input class="inp mono" data-k="source.path" value="${h(s.source.path || "")}" placeholder="the top of the repository" spellcheck="false"></label></div>
@@ -960,6 +965,7 @@ async function saveSettings(btn) {
   if (s.type === "git" && (p["source.build"] || body.source?.mode === "build")) {
     try { body.source ||= {}; body.source.build = readBuild(); } catch (e) { return toast(e.message, "err"); }
   }
+  if (body.block) { body.blockTypes = { list: $('[data-k="block.list"]').value.trim(), dir: $('[data-k="block.dir"]').value }; delete body.block; }
   if (body.maintenance) body.maintenance = { on: $('[data-k="maintenance.on"]').checked, title: $('[data-k="maintenance.title"]').value, message: $('[data-k="maintenance.message"]').value };
   if (body.access === "password" && !body.password && !s.tunnelInfo?.locked) return toast("Set the site's password.", "err");
   if ("password" in body && !body.password) delete body.password;

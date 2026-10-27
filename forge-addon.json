@@ -2,7 +2,7 @@
   "spec": 1,
   "id": "burrow-pages",
   "name": "Burrow Pages",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Your static websites on your own addresses: from GitHub or GitLab (any number of accounts, built in a container when they need it), from any Git repository, from an upload, a repository's own Pages site, a site that lives elsewhere, or a port of an app on this machine or any of your Machines. Every push deployed, any deploy one click from live again, visitor numbers without cookies, health checks, and your login, a password or public for each.",
   "author": "Alexd Aero",
   "license": "MIT",
